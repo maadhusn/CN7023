@@ -29,6 +29,7 @@ class GradCAM:
 
     def _register_hooks(self):
         """Register forward and backward hooks."""
+
         def forward_hook(module, input, output):
             self.activations = output
 
@@ -47,7 +48,9 @@ class GradCAM:
         target_module.register_forward_hook(forward_hook)
         target_module.register_backward_hook(backward_hook)
 
-    def generate_cam(self, input_tensor: torch.Tensor, class_idx: int = None) -> np.ndarray:
+    def generate_cam(
+        self, input_tensor: torch.Tensor, class_idx: int = None
+    ) -> np.ndarray:
         """Generate GradCAM heatmap."""
         self.model.eval()
 
@@ -95,7 +98,9 @@ def get_target_layer(model: nn.Module, model_name: str) -> str:
             raise ValueError("No convolutional layers found in model")
 
 
-def overlay_heatmap(image: np.ndarray, heatmap: np.ndarray, alpha: float = 0.4) -> np.ndarray:
+def overlay_heatmap(
+    image: np.ndarray, heatmap: np.ndarray, alpha: float = 0.4
+) -> np.ndarray:
     """Overlay heatmap on original image."""
     heatmap_resized = cv2.resize(heatmap, (image.shape[1], image.shape[0]))
 
@@ -116,7 +121,7 @@ def generate_individual_gradcam_files(
     device: torch.device,
     model_name: str,
     num_samples: int = 4,
-    save_dir: str = "report_assets"
+    save_dir: str = "report_assets",
 ):
     """Generate individual GradCAM files with original basenames."""
     os.makedirs(save_dir, exist_ok=True)
@@ -138,7 +143,7 @@ def generate_individual_gradcam_files(
             if samples_collected >= num_samples:
                 break
 
-            input_tensor = data[i:i+1]
+            input_tensor = data[i : i + 1]
             target = targets[i].item()
 
             input_tensor.requires_grad_(True)
@@ -173,20 +178,20 @@ def generate_individual_gradcam_files(
             fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
             axes[0].imshow(input_image)
-            axes[0].set_title(f'Original\nTrue: {class_names[target]}')
-            axes[0].axis('off')
+            axes[0].set_title(f"Original\nTrue: {class_names[target]}")
+            axes[0].axis("off")
 
-            axes[1].imshow(cam, cmap='jet')
-            axes[1].set_title(f'GradCAM\nPred: {class_names[predicted_class]}')
-            axes[1].axis('off')
+            axes[1].imshow(cam, cmap="jet")
+            axes[1].set_title(f"GradCAM\nPred: {class_names[predicted_class]}")
+            axes[1].axis("off")
 
             axes[2].imshow(overlay)
-            axes[2].set_title(f'Overlay\nConf: {confidence:.3f}')
-            axes[2].axis('off')
+            axes[2].set_title(f"Overlay\nConf: {confidence:.3f}")
+            axes[2].axis("off")
 
             plt.tight_layout()
             filepath = os.path.join(save_dir, filename)
-            plt.savefig(filepath, dpi=150, bbox_inches='tight')
+            plt.savefig(filepath, dpi=150, bbox_inches="tight")
             plt.close()
 
             print(f"Saved GradCAM: {filepath}")
@@ -202,7 +207,7 @@ def visualize_gradcam_samples(
     device: torch.device,
     model_name: str,
     num_samples: int = 4,
-    save_dir: str = "report_assets"
+    save_dir: str = "report_assets",
 ):
     """Generate GradCAM visualizations for sample images."""
     os.makedirs(save_dir, exist_ok=True)
@@ -230,7 +235,7 @@ def visualize_gradcam_samples(
                 if samples_collected >= num_samples:
                     break
 
-                input_tensor = data[i:i+1]
+                input_tensor = data[i : i + 1]
                 target = targets[i].item()
 
                 with torch.enable_grad():
@@ -254,22 +259,22 @@ def visualize_gradcam_samples(
                 row = samples_collected
 
                 axes[row, 0].imshow(input_image)
-                axes[row, 0].set_title(f'Original\nTrue: {class_names[target]}')
-                axes[row, 0].axis('off')
+                axes[row, 0].set_title(f"Original\nTrue: {class_names[target]}")
+                axes[row, 0].axis("off")
 
-                axes[row, 1].imshow(cam, cmap='jet')
-                axes[row, 1].set_title(f'GradCAM\nPred: {class_names[predicted_class]}')
-                axes[row, 1].axis('off')
+                axes[row, 1].imshow(cam, cmap="jet")
+                axes[row, 1].set_title(f"GradCAM\nPred: {class_names[predicted_class]}")
+                axes[row, 1].axis("off")
 
                 axes[row, 2].imshow(overlay)
-                axes[row, 2].set_title(f'Overlay\nConf: {confidence:.3f}')
-                axes[row, 2].axis('off')
+                axes[row, 2].set_title(f"Overlay\nConf: {confidence:.3f}")
+                axes[row, 2].axis("off")
 
                 samples_collected += 1
 
     plt.tight_layout()
     gradcam_path = os.path.join(save_dir, "gradcam_visualizations.png")
-    plt.savefig(gradcam_path, dpi=150, bbox_inches='tight')
+    plt.savefig(gradcam_path, dpi=150, bbox_inches="tight")
     plt.close()
 
     print(f"GradCAM visualizations saved to {gradcam_path}")
@@ -283,7 +288,7 @@ def main():
 
     device = get_device()
 
-    model_name = config['train']['model']
+    model_name = config["train"]["model"]
     checkpoint_dir = Path("checkpoints")
 
     best_model_path = checkpoint_dir / f"{model_name}_best.pth"
@@ -305,7 +310,7 @@ def main():
     print("Creating data loaders...")
     train_loader, val_loader, test_loader = create_data_loaders(config)
 
-    num_samples = config['eval'].get('gradcam_samples', 4)
+    num_samples = config["eval"].get("gradcam_samples", 4)
     print(f"Generating GradCAM visualizations for {num_samples} samples...")
 
     visualize_gradcam_samples(

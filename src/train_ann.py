@@ -27,20 +27,26 @@ def train_ann_model(
     X_val: np.ndarray,
     y_val: np.ndarray,
     config: dict,
-    class_names: list
+    class_names: list,
 ) -> HOGClassifier:
     """Train ANN model with handcrafted features."""
-    ann_config = config['ann']
+    ann_config = config["ann"]
 
     classifier = HOGClassifier(
-        classifier_type='random_forest',
+        classifier_type="random_forest",
         hog_params={
-            'pixels_per_cell': (ann_config['hog_pixels_per_cell'], ann_config['hog_pixels_per_cell']),
-            'cells_per_block': (ann_config['hog_cells_per_block'], ann_config['hog_cells_per_block']),
-            'orientations': ann_config['hog_bins']
+            "pixels_per_cell": (
+                ann_config["hog_pixels_per_cell"],
+                ann_config["hog_pixels_per_cell"],
+            ),
+            "cells_per_block": (
+                ann_config["hog_cells_per_block"],
+                ann_config["hog_cells_per_block"],
+            ),
+            "orientations": ann_config["hog_bins"],
         },
         use_color_hist=True,
-        use_texture=True
+        use_texture=True,
     )
 
     print("Training Random Forest classifier...")
@@ -60,36 +66,54 @@ def compare_classifiers(
     X_val: np.ndarray,
     y_val: np.ndarray,
     config: dict,
-    class_names: list
+    class_names: list,
 ) -> dict:
     """Compare different traditional ML classifiers."""
-    ann_config = config['ann']
+    ann_config = config["ann"]
 
     classifiers = {
-        'Random Forest': HOGClassifier(
-            classifier_type='random_forest',
+        "Random Forest": HOGClassifier(
+            classifier_type="random_forest",
             hog_params={
-                'pixels_per_cell': (ann_config['hog_pixels_per_cell'], ann_config['hog_pixels_per_cell']),
-                'cells_per_block': (ann_config['hog_cells_per_block'], ann_config['hog_cells_per_block']),
-                'orientations': ann_config['hog_bins']
-            }
+                "pixels_per_cell": (
+                    ann_config["hog_pixels_per_cell"],
+                    ann_config["hog_pixels_per_cell"],
+                ),
+                "cells_per_block": (
+                    ann_config["hog_cells_per_block"],
+                    ann_config["hog_cells_per_block"],
+                ),
+                "orientations": ann_config["hog_bins"],
+            },
         ),
-        'SVM': HOGClassifier(
-            classifier_type='svm',
+        "SVM": HOGClassifier(
+            classifier_type="svm",
             hog_params={
-                'pixels_per_cell': (ann_config['hog_pixels_per_cell'], ann_config['hog_pixels_per_cell']),
-                'cells_per_block': (ann_config['hog_cells_per_block'], ann_config['hog_cells_per_block']),
-                'orientations': ann_config['hog_bins']
-            }
+                "pixels_per_cell": (
+                    ann_config["hog_pixels_per_cell"],
+                    ann_config["hog_pixels_per_cell"],
+                ),
+                "cells_per_block": (
+                    ann_config["hog_cells_per_block"],
+                    ann_config["hog_cells_per_block"],
+                ),
+                "orientations": ann_config["hog_bins"],
+            },
         ),
-        'Logistic Regression': HOGClassifier(
-            classifier_type='logistic',
+        "Logistic Regression": HOGClassifier(
+            classifier_type="logistic",
             hog_params={
-                'pixels_per_cell': (ann_config['hog_pixels_per_cell'], ann_config['hog_pixels_per_cell']),
-                'cells_per_block': (ann_config['hog_cells_per_block'], ann_config['hog_cells_per_block']),
-                'orientations': ann_config['hog_bins']
-            }
-        )
+                "pixels_per_cell": (
+                    ann_config["hog_pixels_per_cell"],
+                    ann_config["hog_pixels_per_cell"],
+                ),
+                "cells_per_block": (
+                    ann_config["hog_cells_per_block"],
+                    ann_config["hog_cells_per_block"],
+                ),
+                "orientations": ann_config["hog_bins"],
+            },
+        ),
     }
 
     results = {}
@@ -100,9 +124,9 @@ def compare_classifiers(
 
         val_metrics = classifier.evaluate(X_val, y_val, class_names)
         results[name] = {
-            'classifier': classifier,
-            'accuracy': val_metrics['accuracy'],
-            'metrics': val_metrics
+            "classifier": classifier,
+            "accuracy": val_metrics["accuracy"],
+            "metrics": val_metrics,
         }
 
         print(f"{name} Validation Accuracy: {val_metrics['accuracy']:.4f}")
@@ -117,7 +141,7 @@ def train_mlp(
     y_val: np.ndarray,
     config: dict,
     num_classes: int,
-    device: torch.device
+    device: torch.device,
 ) -> Tuple:
     """Train MLP neural network."""
     scaler = StandardScaler()
@@ -131,15 +155,15 @@ def train_mlp(
     optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 
     train_dataset = torch.utils.data.TensorDataset(
-        torch.FloatTensor(X_train_scaled),
-        torch.LongTensor(y_train)
+        torch.FloatTensor(X_train_scaled), torch.LongTensor(y_train)
     )
     val_dataset = torch.utils.data.TensorDataset(
-        torch.FloatTensor(X_val_scaled),
-        torch.LongTensor(y_val)
+        torch.FloatTensor(X_val_scaled), torch.LongTensor(y_val)
     )
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=32, shuffle=True
+    )
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=32, shuffle=False)
 
     train_losses, val_losses = [], []
@@ -157,7 +181,9 @@ def train_mlp(
         train_total = 0
 
         for batch_features, batch_labels in train_loader:
-            batch_features, batch_labels = batch_features.to(device), batch_labels.to(device)
+            batch_features, batch_labels = batch_features.to(device), batch_labels.to(
+                device
+            )
 
             optimizer.zero_grad()
             outputs = model(batch_features)
@@ -177,7 +203,9 @@ def train_mlp(
 
         with torch.no_grad():
             for batch_features, batch_labels in val_loader:
-                batch_features, batch_labels = batch_features.to(device), batch_labels.to(device)
+                batch_features, batch_labels = batch_features.to(
+                    device
+                ), batch_labels.to(device)
 
                 outputs = model(batch_features)
                 loss = criterion(outputs, batch_labels)
@@ -203,7 +231,9 @@ def train_mlp(
             patience_counter += 1
 
         if epoch % 10 == 0:
-            print(f"Epoch {epoch+1}/{num_epochs}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%")
+            print(
+                f"Epoch {epoch+1}/{num_epochs}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%"
+            )
 
         if patience_counter >= patience:
             print(f"Early stopping at epoch {epoch+1}")
@@ -211,7 +241,7 @@ def train_mlp(
 
     model.load_state_dict(torch.load("checkpoints/small_ann_state.pt"))
 
-    with open("checkpoints/ann_scaler.pkl", 'wb') as f:
+    with open("checkpoints/ann_scaler.pkl", "wb") as f:
         pickle.dump(scaler, f)
 
     return model, train_losses, val_losses, train_accs, val_accs
@@ -239,7 +269,9 @@ def main():
 
     num_classes = len(np.unique(y_train))
 
-    print(f"\nTraining MLP with {X_train.shape[1]} features for {num_classes} classes...")
+    print(
+        f"\nTraining MLP with {X_train.shape[1]} features for {num_classes} classes..."
+    )
 
     os.makedirs("checkpoints", exist_ok=True)
     os.makedirs("report_assets", exist_ok=True)
@@ -252,36 +284,37 @@ def main():
 
     epochs_range = range(1, len(train_losses) + 1)
 
-    ax1.plot(epochs_range, train_losses, 'b-', label='Training Loss')
-    ax1.plot(epochs_range, val_losses, 'r-', label='Validation Loss')
-    ax1.set_title('ANN Training and Validation Loss')
-    ax1.set_xlabel('Epochs')
-    ax1.set_ylabel('Loss')
+    ax1.plot(epochs_range, train_losses, "b-", label="Training Loss")
+    ax1.plot(epochs_range, val_losses, "r-", label="Validation Loss")
+    ax1.set_title("ANN Training and Validation Loss")
+    ax1.set_xlabel("Epochs")
+    ax1.set_ylabel("Loss")
     ax1.legend()
     ax1.grid(True)
 
-    ax2.plot(epochs_range, train_accs, 'b-', label='Training Accuracy')
-    ax2.plot(epochs_range, val_accs, 'r-', label='Validation Accuracy')
-    ax2.set_title('ANN Training and Validation Accuracy')
-    ax2.set_xlabel('Epochs')
-    ax2.set_ylabel('Accuracy (%)')
+    ax2.plot(epochs_range, train_accs, "b-", label="Training Accuracy")
+    ax2.plot(epochs_range, val_accs, "r-", label="Validation Accuracy")
+    ax2.set_title("ANN Training and Validation Accuracy")
+    ax2.set_xlabel("Epochs")
+    ax2.set_ylabel("Accuracy (%)")
     ax2.legend()
     ax2.grid(True)
 
     plt.tight_layout()
-    plt.savefig('report_assets/ann_curves.png', dpi=150, bbox_inches='tight')
+    plt.savefig("report_assets/ann_curves.png", dpi=150, bbox_inches="tight")
     plt.close()
     print("ANN training curves saved to report_assets/ann_curves.png")
 
-    with open("checkpoints/ann_scaler.pkl", 'rb') as f:
+    with open("checkpoints/ann_scaler.pkl", "rb") as f:
         scaler = pickle.load(f)
 
     X_test_scaled = scaler.transform(X_test)
     test_dataset = torch.utils.data.TensorDataset(
-        torch.FloatTensor(X_test_scaled),
-        torch.LongTensor(y_test)
+        torch.FloatTensor(X_test_scaled), torch.LongTensor(y_test)
     )
-    test_loader_ann = torch.utils.data.DataLoader(test_dataset, batch_size=32, shuffle=False)
+    test_loader_ann = torch.utils.data.DataLoader(
+        test_dataset, batch_size=32, shuffle=False
+    )
 
     model.eval()
     test_correct = 0
@@ -291,7 +324,9 @@ def main():
 
     with torch.no_grad():
         for batch_features, batch_labels in test_loader_ann:
-            batch_features, batch_labels = batch_features.to(device), batch_labels.to(device)
+            batch_features, batch_labels = batch_features.to(device), batch_labels.to(
+                device
+            )
 
             outputs = model(batch_features)
             _, predicted = torch.max(outputs.data, 1)
@@ -309,16 +344,16 @@ def main():
     best_val_acc = max(val_accs)
 
     metrics = {
-        'best_val_accuracy': best_val_acc,
-        'test_accuracy': test_acc,
-        'epochs_trained': len(train_losses),
-        'feature_dim': X_train.shape[1],
-        'num_classes': num_classes,
-        'model_architecture': '128->64->num_classes',
-        'dropout': 0.2
+        "best_val_accuracy": best_val_acc,
+        "test_accuracy": test_acc,
+        "epochs_trained": len(train_losses),
+        "feature_dim": X_train.shape[1],
+        "num_classes": num_classes,
+        "model_architecture": "128->64->num_classes",
+        "dropout": 0.2,
     }
 
-    with open('report_assets/ann_metrics.json', 'w') as f:
+    with open("report_assets/ann_metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
     print("ANN metrics saved to report_assets/ann_metrics.json")
 

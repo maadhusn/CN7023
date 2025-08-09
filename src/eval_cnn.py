@@ -28,7 +28,7 @@ def evaluate_model(
     device: torch.device,
     class_names: list,
     use_tta: bool = False,
-    config: dict = None
+    config: dict = None,
 ) -> dict:
     """Evaluate model on test set."""
     model.eval()
@@ -45,7 +45,7 @@ def evaluate_model(
             if use_tta and config:
                 batch_outputs = []
                 for i in range(data.size(0)):
-                    single_input = data[i:i+1]
+                    single_input = data[i : i + 1]
                     tta_inputs = apply_test_time_augmentation(single_input[0], config)
 
                     tta_outputs = []
@@ -76,9 +76,9 @@ def evaluate_model(
 
     metrics = calculate_metrics(all_targets, all_predictions, class_names)
 
-    metrics['probabilities'] = np.array(all_probabilities).tolist()
-    metrics['predictions'] = all_predictions
-    metrics['targets'] = all_targets
+    metrics["probabilities"] = np.array(all_probabilities).tolist()
+    metrics["predictions"] = all_predictions
+    metrics["targets"] = all_targets
 
     return metrics
 
@@ -87,14 +87,14 @@ def load_trained_model(model_path: str, device: torch.device):
     """Load a trained model from checkpoint."""
     checkpoint = torch.load(model_path, map_location=device)
 
-    config = checkpoint.get('config', load_config())
-    classes = checkpoint.get('classes', ['class_0', 'class_1', 'class_2', 'class_3'])
+    config = checkpoint.get("config", load_config())
+    classes = checkpoint.get("classes", ["class_0", "class_1", "class_2", "class_3"])
 
-    model_name = config['train']['model']
+    model_name = config["train"]["model"]
     num_classes = len(classes)
     model = create_model(model_name, num_classes, pretrained=False)
 
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model.load_state_dict(checkpoint["model_state_dict"])
     model = model.to(device)
 
     return model, config, classes
@@ -106,16 +106,15 @@ def generate_evaluation_report(metrics: dict, save_dir: str = "report_assets"):
 
     save_metrics(metrics, os.path.join(save_dir, "evaluation_metrics.json"))
 
-    cm = np.array(metrics['confusion_matrix'])
-    class_names = list(metrics['classification_report'].keys())[:-3]  # Remove avg keys
+    cm = np.array(metrics["confusion_matrix"])
+    class_names = list(metrics["classification_report"].keys())[:-3]  # Remove avg keys
 
     plot_confusion_matrix(
-        cm, class_names,
-        save_path=os.path.join(save_dir, "confusion_matrix.png")
+        cm, class_names, save_path=os.path.join(save_dir, "confusion_matrix.png")
     )
 
     report_path = os.path.join(save_dir, "classification_report.txt")
-    with open(report_path, 'w') as f:
+    with open(report_path, "w") as f:
         f.write("Plant Disease Classification - Evaluation Report\n")
         f.write("=" * 50 + "\n\n")
 
@@ -126,7 +125,7 @@ def generate_evaluation_report(metrics: dict, save_dir: str = "report_assets"):
         f.write("Per-Class Performance:\n")
         f.write("-" * 30 + "\n")
 
-        report = metrics['classification_report']
+        report = metrics["classification_report"]
         for class_name in class_names:
             if class_name in report:
                 class_metrics = report[class_name]
@@ -141,31 +140,35 @@ def generate_evaluation_report(metrics: dict, save_dir: str = "report_assets"):
 
 def main():
     """Main evaluation function."""
-    parser = argparse.ArgumentParser(description='Evaluate CNN model')
-    parser.add_argument('--tta', action='store_true', help='Use test-time augmentation')
-    parser.add_argument('--gradcam', type=int, default=0, help='Generate N GradCAM visualizations')
+    parser = argparse.ArgumentParser(description="Evaluate CNN model")
+    parser.add_argument("--tta", action="store_true", help="Use test-time augmentation")
+    parser.add_argument(
+        "--gradcam", type=int, default=0, help="Generate N GradCAM visualizations"
+    )
     args = parser.parse_args()
 
     config = load_config()
 
     if args.tta:
-        config['eval']['tta'] = True
+        config["eval"]["tta"] = True
 
     set_seed(42)
 
     device = get_device()
 
-    model_name = config['train']['model']
+    model_name = config["train"]["model"]
     checkpoint_dir = Path("checkpoints")
 
     state_dict_path = checkpoint_dir / f"small_{model_name}_state.pt"
     if state_dict_path.exists():
         print(f"Loading state dict: {state_dict_path}")
-        num_classes = len(config.get('classes', ['class_0', 'class_1', 'class_2', 'class_3']))
+        num_classes = len(
+            config.get("classes", ["class_0", "class_1", "class_2", "class_3"])
+        )
         model = create_model(model_name, num_classes, pretrained=False)
         model.load_state_dict(torch.load(state_dict_path, map_location=device))
         model = model.to(device)
-        class_names = config.get('classes', [f'class_{i}' for i in range(num_classes)])
+        class_names = config.get("classes", [f"class_{i}" for i in range(num_classes)])
     else:
         best_model_path = checkpoint_dir / f"{model_name}_best.pth"
         final_model_path = checkpoint_dir / f"{model_name}_final.pth"
@@ -187,16 +190,18 @@ def main():
     print("Creating data loaders...")
     train_loader, val_loader, test_loader = create_data_loaders(config)
 
-    use_tta = config['eval'].get('tta', False)
+    use_tta = config["eval"].get("tta", False)
     if use_tta:
         print("Using test-time augmentation")
 
     print("Evaluating model on test set...")
-    test_metrics = evaluate_model(model, test_loader, device, class_names, use_tta, config)
+    test_metrics = evaluate_model(
+        model, test_loader, device, class_names, use_tta, config
+    )
 
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("EVALUATION RESULTS")
-    print("="*50)
+    print("=" * 50)
     print(f"Test Accuracy: {test_metrics['accuracy']:.4f}")
     print(f"Macro F1-Score: {test_metrics['macro_f1']:.4f}")
     print(f"Weighted F1-Score: {test_metrics['weighted_f1']:.4f}")
@@ -208,18 +213,19 @@ def main():
         with open(metrics_path) as f:
             metrics = json.load(f)
 
-        metrics['test_accuracy'] = test_metrics['accuracy']
-        metrics['test_macro_f1'] = test_metrics['macro_f1']
-        metrics['test_weighted_f1'] = test_metrics['weighted_f1']
-        metrics['test_classification_report'] = test_metrics['classification_report']
+        metrics["test_accuracy"] = test_metrics["accuracy"]
+        metrics["test_macro_f1"] = test_metrics["macro_f1"]
+        metrics["test_weighted_f1"] = test_metrics["weighted_f1"]
+        metrics["test_classification_report"] = test_metrics["classification_report"]
 
-        with open(metrics_path, 'w') as f:
+        with open(metrics_path, "w") as f:
             json.dump(metrics, f, indent=2)
 
         print(f"Updated {metrics_path} with test results")
 
     if args.gradcam > 0:
         from gradcam import generate_individual_gradcam_files
+
         print(f"Generating {args.gradcam} GradCAM visualizations...")
         generate_individual_gradcam_files(
             model, test_loader, class_names, device, model_name, args.gradcam

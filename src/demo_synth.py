@@ -17,7 +17,7 @@ def create_synthetic_dataset(
     num_classes: int = 6,
     samples_per_class: int = 20,
     image_size: int = 192,
-    save_dir: str = None
+    save_dir: str = None,
 ) -> str:
     """Create a synthetic dataset for testing."""
     if save_dir is None:
@@ -31,7 +31,14 @@ def create_synthetic_dataset(
     variant_dir.mkdir(parents=True, exist_ok=True)
     splits_dir.mkdir(parents=True, exist_ok=True)
 
-    class_names = ["healthy", "bacterial_spot", "early_blight", "late_blight", "mosaic_virus", "target_spot"][:num_classes]
+    class_names = [
+        "healthy",
+        "bacterial_spot",
+        "early_blight",
+        "late_blight",
+        "mosaic_virus",
+        "target_spot",
+    ][:num_classes]
 
     all_samples = []
 
@@ -60,12 +67,16 @@ def create_synthetic_dataset(
     n_val = int(len(all_samples) * val_split)
 
     train_samples = all_samples[:n_train]
-    val_samples = all_samples[n_train:n_train + n_val]
-    test_samples = all_samples[n_train + n_val:]
+    val_samples = all_samples[n_train : n_train + n_val]
+    test_samples = all_samples[n_train + n_val :]
 
-    for split_name, samples in [("train", train_samples), ("val", val_samples), ("test", test_samples)]:
+    for split_name, samples in [
+        ("train", train_samples),
+        ("val", val_samples),
+        ("test", test_samples),
+    ]:
         manifest_path = splits_dir / f"{split_name}.txt"
-        with open(manifest_path, 'w') as f:
+        with open(manifest_path, "w") as f:
             for rel_path, _ in samples:
                 f.write(f"{rel_path}\n")
 
@@ -94,7 +105,7 @@ def create_synthetic_plant_image(class_idx: int, size: int = 192) -> Image.Image
             radius = np.random.randint(3, 8)
 
             y, x = np.ogrid[:size, :size]
-            mask = (x - center_x)**2 + (y - center_y)**2 <= radius**2
+            mask = (x - center_x) ** 2 + (y - center_y) ** 2 <= radius**2
 
             image[mask] = [30, 20, 10]  # Dark brown spots
 
@@ -106,7 +117,7 @@ def create_synthetic_plant_image(class_idx: int, size: int = 192) -> Image.Image
             radius = np.random.randint(8, 15)
 
             y, x = np.ogrid[:size, :size]
-            mask = (x - center_x)**2 + (y - center_y)**2 <= radius**2
+            mask = (x - center_x) ** 2 + (y - center_y) ** 2 <= radius**2
 
             image[mask, 0] = np.clip(image[mask, 0] + 80, 0, 255)  # More red
             image[mask, 1] = np.clip(image[mask, 1] + 60, 0, 255)  # More green
@@ -120,8 +131,8 @@ def create_synthetic_plant_image(class_idx: int, size: int = 192) -> Image.Image
             width = np.random.randint(10, 25)
             height = np.random.randint(10, 25)
 
-            x1, x2 = max(0, center_x - width//2), min(size, center_x + width//2)
-            y1, y2 = max(0, center_y - height//2), min(size, center_y + height//2)
+            x1, x2 = max(0, center_x - width // 2), min(size, center_x + width // 2)
+            y1, y2 = max(0, center_y - height // 2), min(size, center_y + height // 2)
 
             image[y1:y2, x1:x2] = image[y1:y2, x1:x2] * 0.3  # Darken the area
 
@@ -133,7 +144,7 @@ def create_synthetic_plant_image(class_idx: int, size: int = 192) -> Image.Image
             radius = np.random.randint(5, 12)
 
             y, x = np.ogrid[:size, :size]
-            mask = (x - center_x)**2 + (y - center_y)**2 <= radius**2
+            mask = (x - center_x) ** 2 + (y - center_y) ** 2 <= radius**2
 
             image[mask, 1] = np.clip(image[mask, 1] + 40, 0, 255)  # More green
             image[mask, 2] = np.clip(image[mask, 2] + 60, 0, 255)  # More blue
@@ -147,8 +158,8 @@ def create_synthetic_plant_image(class_idx: int, size: int = 192) -> Image.Image
             inner_radius = outer_radius - 3
 
             y, x = np.ogrid[:size, :size]
-            outer_mask = (x - center_x)**2 + (y - center_y)**2 <= outer_radius**2
-            inner_mask = (x - center_x)**2 + (y - center_y)**2 <= inner_radius**2
+            outer_mask = (x - center_x) ** 2 + (y - center_y) ** 2 <= outer_radius**2
+            inner_mask = (x - center_x) ** 2 + (y - center_y) ** 2 <= inner_radius**2
             ring_mask = outer_mask & ~inner_mask
 
             image[ring_mask] = [80, 40, 20]  # Brown ring pattern
@@ -171,19 +182,21 @@ def run_synthetic_demo():
     print("\n1. Creating synthetic dataset...")
     dataset_path = create_synthetic_dataset(
         num_classes=4,
-        samples_per_class=config['data'].get('subset_per_class', 20),
-        image_size=config['data']['image_size']
+        samples_per_class=config["data"].get("subset_per_class", 20),
+        image_size=config["data"]["image_size"],
     )
 
-    config['data']['root'] = dataset_path
+    config["data"]["root"] = dataset_path
 
     device = get_device()
 
     print("\n2. Creating and testing model...")
-    model = create_model(config['train']['model'], num_classes=4, pretrained=False)
+    model = create_model(config["train"]["model"], num_classes=4, pretrained=False)
     model = model.to(device)
 
-    dummy_input = torch.randn(1, 3, config['data']['image_size'], config['data']['image_size'])
+    dummy_input = torch.randn(
+        1, 3, config["data"]["image_size"], config["data"]["image_size"]
+    )
     dummy_input = dummy_input.to(device)
 
     model.eval()
@@ -204,7 +217,7 @@ def run_synthetic_demo():
         variant="color",
         split="train",
         transform=transform,
-        subset_per_class=10  # Small subset for demo
+        subset_per_class=10,  # Small subset for demo
     )
 
     print(f"Dataset size: {len(dataset)}")
@@ -212,7 +225,9 @@ def run_synthetic_demo():
 
     for i in range(min(3, len(dataset))):
         image, label = dataset[i]
-        print(f"Sample {i}: shape={image.shape}, label={label} ({dataset.classes[label]})")
+        print(
+            f"Sample {i}: shape={image.shape}, label={label} ({dataset.classes[label]})"
+        )
 
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=4, shuffle=False, num_workers=0
@@ -221,7 +236,9 @@ def run_synthetic_demo():
     batch_count = 0
     for batch_images, batch_labels in data_loader:
         batch_count += 1
-        print(f"Batch {batch_count}: images={batch_images.shape}, labels={batch_labels.shape}")
+        print(
+            f"Batch {batch_count}: images={batch_images.shape}, labels={batch_labels.shape}"
+        )
         if batch_count >= 2:  # Only test first 2 batches
             break
 
@@ -241,16 +258,16 @@ def run_synthetic_demo():
     os.makedirs("checkpoints", exist_ok=True)
 
     checkpoint = {
-        'model_state_dict': model.state_dict(),
-        'config': config,
-        'classes': dataset.classes,
-        'demo_run': True
+        "model_state_dict": model.state_dict(),
+        "config": config,
+        "classes": dataset.classes,
+        "demo_run": True,
     }
 
     torch.save(checkpoint, "checkpoints/synthetic_demo_model.pth")
 
     report_path = "report_assets/synthetic_demo_report.txt"
-    with open(report_path, 'w') as f:
+    with open(report_path, "w") as f:
         f.write("PlantVillage Synthetic Demo Report\n")
         f.write("=" * 40 + "\n\n")
         f.write(f"Dataset path: {dataset_path}\n")
@@ -269,6 +286,7 @@ def run_synthetic_demo():
     print(f"   - Classes: {dataset.classes}")
 
     import shutil
+
     if dataset_path.startswith("/tmp/"):
         print(f"\nCleaning up temporary dataset: {dataset_path}")
         shutil.rmtree(dataset_path)
@@ -288,5 +306,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ Synthetic demo failed with error: {e}")
         import traceback
+
         traceback.print_exc()
         exit(1)

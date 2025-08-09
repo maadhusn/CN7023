@@ -21,8 +21,7 @@ class EfficientNetClassifier(nn.Module):
 
         in_features = self.backbone.classifier[1].in_features
         self.backbone.classifier = nn.Sequential(
-            nn.Dropout(0.2),
-            nn.Linear(in_features, num_classes)
+            nn.Dropout(0.2), nn.Linear(in_features, num_classes)
         )
 
         self.num_classes = num_classes
@@ -55,7 +54,7 @@ class MobileNetClassifier(nn.Module):
             nn.Linear(self.backbone.classifier[0].in_features, 1024),
             nn.Hardswish(),
             nn.Dropout(0.2),
-            nn.Linear(1024, num_classes)
+            nn.Linear(1024, num_classes),
         )
 
         self.num_classes = num_classes
@@ -71,7 +70,9 @@ class MobileNetClassifier(nn.Module):
         return x
 
 
-def create_model(model_name: str, num_classes: int = 4, pretrained: bool = True) -> nn.Module:
+def create_model(
+    model_name: str, num_classes: int = 4, pretrained: bool = True
+) -> nn.Module:
     """Factory function to create models."""
     if model_name == "efficientnet_b0":
         return EfficientNetClassifier(num_classes, pretrained)
@@ -87,7 +88,7 @@ def get_model_info(model: nn.Module) -> dict:
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     return {
-        'total_parameters': total_params,
-        'trainable_parameters': trainable_params,
-        'model_size_mb': total_params * 4 / (1024 * 1024),  # Assuming float32
+        "total_parameters": total_params,
+        "trainable_parameters": trainable_params,
+        "model_size_mb": total_params * 4 / (1024 * 1024),  # Assuming float32
     }

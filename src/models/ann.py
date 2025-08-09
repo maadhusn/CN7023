@@ -21,7 +21,7 @@ class HOGFeatureExtractor:
         pixels_per_cell: Tuple[int, int] = (16, 16),
         cells_per_block: Tuple[int, int] = (2, 2),
         orientations: int = 9,
-        block_norm: str = 'L2-Hys'
+        block_norm: str = "L2-Hys",
     ):
         self.pixels_per_cell = pixels_per_cell
         self.cells_per_block = cells_per_block
@@ -42,7 +42,7 @@ class HOGFeatureExtractor:
             cells_per_block=self.cells_per_block,
             block_norm=self.block_norm,
             visualize=False,
-            feature_vector=True
+            feature_vector=True,
         )
 
         return features
@@ -94,12 +94,14 @@ class TextureFeatureExtractor:
         else:
             gray = image
 
-        lbp = local_binary_pattern(gray, self.n_points, self.radius, method='uniform')
+        lbp = local_binary_pattern(gray, self.n_points, self.radius, method="uniform")
 
-        hist, _ = np.histogram(lbp.ravel(), bins=self.n_points + 2, range=(0, self.n_points + 2))
+        hist, _ = np.histogram(
+            lbp.ravel(), bins=self.n_points + 2, range=(0, self.n_points + 2)
+        )
 
         hist = hist.astype(float)
-        hist /= (hist.sum() + 1e-7)
+        hist /= hist.sum() + 1e-7
 
         return hist
 
@@ -109,10 +111,10 @@ class HOGClassifier:
 
     def __init__(
         self,
-        classifier_type: str = 'random_forest',
+        classifier_type: str = "random_forest",
         hog_params: Optional[dict] = None,
         use_color_hist: bool = True,
-        use_texture: bool = True
+        use_texture: bool = True,
     ):
         self.classifier_type = classifier_type
         self.use_color_hist = use_color_hist
@@ -132,26 +134,14 @@ class HOGClassifier:
 
     def _create_classifier(self):
         """Create the specified classifier."""
-        if self.classifier_type == 'random_forest':
+        if self.classifier_type == "random_forest":
             return RandomForestClassifier(
-                n_estimators=100,
-                max_depth=10,
-                random_state=42,
-                n_jobs=-1
+                n_estimators=100, max_depth=10, random_state=42, n_jobs=-1
             )
-        elif self.classifier_type == 'svm':
-            return SVC(
-                kernel='rbf',
-                C=1.0,
-                gamma='scale',
-                random_state=42
-            )
-        elif self.classifier_type == 'logistic':
-            return LogisticRegression(
-                max_iter=1000,
-                random_state=42,
-                n_jobs=-1
-            )
+        elif self.classifier_type == "svm":
+            return SVC(kernel="rbf", C=1.0, gamma="scale", random_state=42)
+        elif self.classifier_type == "logistic":
+            return LogisticRegression(max_iter=1000, random_state=42, n_jobs=-1)
         else:
             raise ValueError(f"Unknown classifier type: {self.classifier_type}")
 
@@ -213,7 +203,7 @@ class HOGClassifier:
         else:  # Already extracted features
             X_features = X
 
-        if hasattr(self.classifier, 'predict_proba'):
+        if hasattr(self.classifier, "predict_proba"):
             return self.classifier.predict_proba(X_features)
         else:
             predictions = self.classifier.predict(X_features)
@@ -233,9 +223,9 @@ class HOGClassifier:
         )
 
         return {
-            'accuracy': accuracy,
-            'classification_report': report,
-            'predictions': predictions.tolist()
+            "accuracy": accuracy,
+            "classification_report": report,
+            "predictions": predictions.tolist(),
         }
 
     def save(self, filepath: str):
@@ -244,38 +234,38 @@ class HOGClassifier:
             raise ValueError("Cannot save unfitted classifier")
 
         model_data = {
-            'classifier': self.classifier,
-            'classifier_type': self.classifier_type,
-            'use_color_hist': self.use_color_hist,
-            'use_texture': self.use_texture,
-            'hog_extractor': self.hog_extractor,
+            "classifier": self.classifier,
+            "classifier_type": self.classifier_type,
+            "use_color_hist": self.use_color_hist,
+            "use_texture": self.use_texture,
+            "hog_extractor": self.hog_extractor,
         }
 
         if self.use_color_hist:
-            model_data['color_extractor'] = self.color_extractor
+            model_data["color_extractor"] = self.color_extractor
 
         if self.use_texture:
-            model_data['texture_extractor'] = self.texture_extractor
+            model_data["texture_extractor"] = self.texture_extractor
 
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             pickle.dump(model_data, f)
 
     def load(self, filepath: str):
         """Load a trained classifier."""
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             model_data = pickle.load(f)
 
-        self.classifier = model_data['classifier']
-        self.classifier_type = model_data['classifier_type']
-        self.use_color_hist = model_data['use_color_hist']
-        self.use_texture = model_data['use_texture']
-        self.hog_extractor = model_data['hog_extractor']
+        self.classifier = model_data["classifier"]
+        self.classifier_type = model_data["classifier_type"]
+        self.use_color_hist = model_data["use_color_hist"]
+        self.use_texture = model_data["use_texture"]
+        self.hog_extractor = model_data["hog_extractor"]
 
         if self.use_color_hist:
-            self.color_extractor = model_data['color_extractor']
+            self.color_extractor = model_data["color_extractor"]
 
         if self.use_texture:
-            self.texture_extractor = model_data['texture_extractor']
+            self.texture_extractor = model_data["texture_extractor"]
 
         self.is_fitted = True
 

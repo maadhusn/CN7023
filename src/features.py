@@ -41,16 +41,22 @@ def extract_hog_features(image: np.ndarray, config: dict) -> np.ndarray:
     else:
         gray = image
 
-    ann_config = config['ann']
+    ann_config = config["ann"]
 
     features = hog(
         gray,
-        orientations=ann_config['hog_bins'],
-        pixels_per_cell=(ann_config['hog_pixels_per_cell'], ann_config['hog_pixels_per_cell']),
-        cells_per_block=(ann_config['hog_cells_per_block'], ann_config['hog_cells_per_block']),
-        block_norm='L2-Hys',
+        orientations=ann_config["hog_bins"],
+        pixels_per_cell=(
+            ann_config["hog_pixels_per_cell"],
+            ann_config["hog_pixels_per_cell"],
+        ),
+        cells_per_block=(
+            ann_config["hog_cells_per_block"],
+            ann_config["hog_cells_per_block"],
+        ),
+        block_norm="L2-Hys",
         visualize=False,
-        feature_vector=True
+        feature_vector=True,
     )
 
     return features
@@ -70,7 +76,9 @@ def extract_area_ratio(image: np.ndarray, mask: np.ndarray = None) -> float:
     return foreground_area / total_area if total_area > 0 else 0.0
 
 
-def extract_features_from_image(image_path: str, config: dict, mask_path: str = None) -> np.ndarray:
+def extract_features_from_image(
+    image_path: str, config: dict, mask_path: str = None
+) -> np.ndarray:
     """Extract all features from a single image."""
     image = cv2.imread(image_path)
     if image is None:
@@ -100,7 +108,7 @@ def extract_features_from_loader(
     data_loader: torch.utils.data.DataLoader,
     config: dict,
     split_name: str,
-    cache_dir: str = "report_assets/features"
+    cache_dir: str = "report_assets/features",
 ) -> Tuple[np.ndarray, np.ndarray, List[str]]:
     """Extract features from a data loader and cache to NPZ."""
     os.makedirs(cache_dir, exist_ok=True)
@@ -109,7 +117,7 @@ def extract_features_from_loader(
     if os.path.exists(cache_file):
         print(f"Loading cached features from {cache_file}")
         data = np.load(cache_file, allow_pickle=True)
-        return data['features'], data['labels'], data['paths'].tolist()
+        return data["features"], data["labels"], data["paths"].tolist()
 
     all_features = []
     all_labels = []
@@ -117,7 +125,9 @@ def extract_features_from_loader(
 
     print(f"Extracting features for {split_name} split...")
 
-    for batch_idx, (data, targets) in enumerate(tqdm(data_loader, desc=f"Extracting {split_name} features")):
+    for batch_idx, (data, targets) in enumerate(
+        tqdm(data_loader, desc=f"Extracting {split_name} features")
+    ):
         for i in range(data.size(0)):
             image_tensor = data[i]
             image_np = image_tensor.numpy().transpose(1, 2, 0)
@@ -144,7 +154,9 @@ def extract_features_from_loader(
     labels_array = np.array(all_labels)
     paths_array = np.array(all_paths)
 
-    np.savez(cache_file, features=features_array, labels=labels_array, paths=paths_array)
+    np.savez(
+        cache_file, features=features_array, labels=labels_array, paths=paths_array
+    )
     print(f"Cached features to {cache_file}")
 
     return features_array, labels_array, all_paths
@@ -158,16 +170,22 @@ def create_feature_extractors(config: dict) -> dict:
         TextureFeatureExtractor,
     )
 
-    ann_config = config['ann']
+    ann_config = config["ann"]
 
     extractors = {
-        'hog': HOGFeatureExtractor(
-            pixels_per_cell=(ann_config['hog_pixels_per_cell'], ann_config['hog_pixels_per_cell']),
-            cells_per_block=(ann_config['hog_cells_per_block'], ann_config['hog_cells_per_block']),
-            orientations=ann_config['hog_bins']
+        "hog": HOGFeatureExtractor(
+            pixels_per_cell=(
+                ann_config["hog_pixels_per_cell"],
+                ann_config["hog_pixels_per_cell"],
+            ),
+            cells_per_block=(
+                ann_config["hog_cells_per_block"],
+                ann_config["hog_cells_per_block"],
+            ),
+            orientations=ann_config["hog_bins"],
         ),
-        'color_hist': ColorHistogramExtractor(bins=32),
-        'texture': TextureFeatureExtractor(radius=3, n_points=24)
+        "color_hist": ColorHistogramExtractor(bins=32),
+        "texture": TextureFeatureExtractor(radius=3, n_points=24),
     }
 
     return extractors
@@ -178,7 +196,7 @@ def reduce_dimensionality(
     X_val: np.ndarray,
     X_test: np.ndarray,
     n_components: float = 0.95,
-    save_dir: str = "checkpoints"
+    save_dir: str = "checkpoints",
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Apply PCA for dimensionality reduction."""
     print(f"Original feature dimension: {X_train.shape[1]}")
@@ -198,31 +216,24 @@ def reduce_dimensionality(
 
     os.makedirs(save_dir, exist_ok=True)
 
-    with open(os.path.join(save_dir, "feature_scaler.pkl"), 'wb') as f:
+    with open(os.path.join(save_dir, "feature_scaler.pkl"), "wb") as f:
         pickle.dump(scaler, f)
 
-    with open(os.path.join(save_dir, "feature_pca.pkl"), 'wb') as f:
+    with open(os.path.join(save_dir, "feature_pca.pkl"), "wb") as f:
         pickle.dump(pca, f)
 
     return X_train_pca, X_val_pca, X_test_pca
 
 
-def save_features(
-    features: dict,
-    labels: dict,
-    save_dir: str = "checkpoints"
-):
+def save_features(features: dict, labels: dict, save_dir: str = "checkpoints"):
     """Save extracted features to disk."""
     os.makedirs(save_dir, exist_ok=True)
 
     features_path = os.path.join(save_dir, "extracted_features.pkl")
 
-    data = {
-        'features': features,
-        'labels': labels
-    }
+    data = {"features": features, "labels": labels}
 
-    with open(features_path, 'wb') as f:
+    with open(features_path, "wb") as f:
         pickle.dump(data, f)
 
     print(f"Features saved to {features_path}")
@@ -235,17 +246,17 @@ def load_features(save_dir: str = "checkpoints") -> Tuple[dict, dict]:
     if not os.path.exists(features_path):
         raise FileNotFoundError(f"Features file not found: {features_path}")
 
-    with open(features_path, 'rb') as f:
+    with open(features_path, "rb") as f:
         data = pickle.load(f)
 
-    return data['features'], data['labels']
+    return data["features"], data["labels"]
 
 
 def analyze_feature_importance(
     X: np.ndarray,
     y: np.ndarray,
     feature_names: List[str],
-    save_dir: str = "report_assets"
+    save_dir: str = "report_assets",
 ):
     """Analyze feature importance using various methods."""
     import matplotlib.pyplot as plt
@@ -266,18 +277,20 @@ def analyze_feature_importance(
     ax1.barh(range(len(top_indices_rf)), rf_importance[top_indices_rf])
     ax1.set_yticks(range(len(top_indices_rf)))
     ax1.set_yticklabels([f"Feature {i}" for i in top_indices_rf])
-    ax1.set_xlabel('Importance')
-    ax1.set_title('Random Forest Feature Importance (Top 20)')
+    ax1.set_xlabel("Importance")
+    ax1.set_title("Random Forest Feature Importance (Top 20)")
 
     top_indices_mi = np.argsort(mi_scores)[-20:]
     ax2.barh(range(len(top_indices_mi)), mi_scores[top_indices_mi])
     ax2.set_yticks(range(len(top_indices_mi)))
     ax2.set_yticklabels([f"Feature {i}" for i in top_indices_mi])
-    ax2.set_xlabel('Mutual Information Score')
-    ax2.set_title('Mutual Information Feature Importance (Top 20)')
+    ax2.set_xlabel("Mutual Information Score")
+    ax2.set_title("Mutual Information Feature Importance (Top 20)")
 
     plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, "feature_importance.png"), dpi=150, bbox_inches='tight')
+    plt.savefig(
+        os.path.join(save_dir, "feature_importance.png"), dpi=150, bbox_inches="tight"
+    )
     plt.close()
 
     print(f"Feature importance analysis saved to {save_dir}/feature_importance.png")
@@ -298,17 +311,21 @@ def main():
 
     print("Extracting features from training set...")
     X_train, y_train = extract_features_from_loader(
-        train_loader, extractors, max_samples=config['data'].get('subset_per_class', None)
+        train_loader,
+        extractors,
+        max_samples=config["data"].get("subset_per_class", None),
     )
 
     print("Extracting features from validation set...")
     X_val, y_val = extract_features_from_loader(
-        val_loader, extractors, max_samples=config['data'].get('subset_per_class', None)
+        val_loader, extractors, max_samples=config["data"].get("subset_per_class", None)
     )
 
     print("Extracting features from test set...")
     X_test, y_test = extract_features_from_loader(
-        test_loader, extractors, max_samples=config['data'].get('subset_per_class', None)
+        test_loader,
+        extractors,
+        max_samples=config["data"].get("subset_per_class", None),
     )
 
     print("Feature extraction completed!")
@@ -321,17 +338,9 @@ def main():
         X_train, X_val, X_test
     )
 
-    features = {
-        'train': X_train_reduced,
-        'val': X_val_reduced,
-        'test': X_test_reduced
-    }
+    features = {"train": X_train_reduced, "val": X_val_reduced, "test": X_test_reduced}
 
-    labels = {
-        'train': y_train,
-        'val': y_val,
-        'test': y_test
-    }
+    labels = {"train": y_train, "val": y_val, "test": y_test}
 
     save_features(features, labels)
 
