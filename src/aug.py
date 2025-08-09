@@ -44,11 +44,11 @@ def apply_test_time_augmentation(image: torch.Tensor, config: dict) -> list:
     """Apply test-time augmentation for improved inference."""
     if not config['eval'].get('tta', False):
         return [image]
-    
+
     image_size = config['data']['image_size']
-    
+
     base_transform = get_val_aug(image_size)
-    
+
     tta_transforms = [
         base_transform,
         transforms.Compose([
@@ -64,7 +64,7 @@ def apply_test_time_augmentation(image: torch.Tensor, config: dict) -> list:
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ]),
     ]
-    
+
     augmented_images = []
     for transform in tta_transforms:
         if isinstance(image, torch.Tensor):
@@ -74,7 +74,7 @@ def apply_test_time_augmentation(image: torch.Tensor, config: dict) -> list:
         else:
             augmented = transform(image)
         augmented_images.append(augmented)
-    
+
     return augmented_images
 
 
@@ -82,30 +82,30 @@ def visualize_augmentations(image, config: dict, num_samples: int = 8):
     """Visualize augmentation effects for debugging."""
     import matplotlib.pyplot as plt
     import numpy as np
-    
+
     transform = get_train_aug(config['data']['image_size'])
-    
+
     fig, axes = plt.subplots(2, 4, figsize=(16, 8))
     axes = axes.flatten()
-    
+
     for i in range(num_samples):
         augmented = transform(image)
-        
+
         if isinstance(augmented, torch.Tensor):
             augmented = augmented.numpy()
-        
+
         mean = np.array([0.485, 0.456, 0.406])
         std = np.array([0.229, 0.224, 0.225])
         augmented = augmented.transpose(1, 2, 0)
         augmented = augmented * std + mean
         augmented = np.clip(augmented, 0, 1)
-        
+
         axes[i].imshow(augmented)
         axes[i].set_title(f'Augmentation {i+1}')
         axes[i].axis('off')
-    
+
     plt.tight_layout()
     plt.savefig('report_assets/augmentation_samples.png', dpi=150, bbox_inches='tight')
     plt.close()
-    
+
     print("Augmentation samples saved to report_assets/augmentation_samples.png")
