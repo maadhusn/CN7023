@@ -1,136 +1,97 @@
-"""Advanced augmentation utilities using Albumentations."""
+"""Augmentation utilities with torchvision transforms."""
 
-import albumentations as A
-import cv2
-import numpy as np
-from albumentations.pytorch import ToTensorV2
+import torch
+from torchvision import transforms
 
 
-def get_albumentations_transforms(config: dict, is_training: bool = True):
-    """Get Albumentations transforms based on configuration."""
-    image_size = config['data']['image_size']
-    
-    if is_training:
-        aug_config = config['aug']
-        
-        transforms_list = [
-            A.Resize(image_size, image_size),
-        ]
-        
-        if aug_config.get('flip', False):
-            transforms_list.append(A.HorizontalFlip(p=0.5))
-        
-        if aug_config.get('rotation_deg', 0) > 0:
-            transforms_list.append(
-                A.Rotate(
-                    limit=aug_config['rotation_deg'],
-                    p=0.5,
-                    border_mode=cv2.BORDER_CONSTANT,
-                    value=0
-                )
-            )
-        
-        if aug_config.get('color_jitter', 0) > 0:
-            jitter = aug_config['color_jitter']
-            transforms_list.extend([
-                A.ColorJitter(
-                    brightness=jitter,
-                    contrast=jitter,
-                    saturation=jitter,
-                    hue=jitter/2,
-                    p=0.5
-                )
-            ])
-        
-        if aug_config.get('blur_p', 0) > 0:
-            transforms_list.append(
-                A.OneOf([
-                    A.GaussianBlur(blur_limit=3, p=1.0),
-                    A.MotionBlur(blur_limit=3, p=1.0),
-                ], p=aug_config['blur_p'])
-            )
-        
-        transforms_list.extend([
-            A.OneOf([
-                A.GridDistortion(p=1.0),
-                A.ElasticTransform(p=1.0),
-            ], p=0.1),
-            A.OneOf([
-                A.RandomBrightnessContrast(p=1.0),
-                A.HueSaturationValue(p=1.0),
-            ], p=0.2),
-        ])
-    
-    else:
-        transforms_list = [
-            A.Resize(image_size, image_size),
-        ]
-    
-    transforms_list.extend([
-        A.Normalize(
+def get_train_aug(size: int) -> transforms.Compose:
+    """Get training augmentations: flip/rotate/jitter/optional blur + normalize (ImageNet)."""
+    return transforms.Compose([
+        transforms.Resize((size, size)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(degrees=10),
+        transforms.ColorJitter(
+            brightness=0.1,
+            contrast=0.1,
+            saturation=0.1,
+            hue=0.05
+        ),
+        transforms.RandomApply([
+            transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))
+        ], p=0.05),
+        transforms.ToTensor(),
+        transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225]
-        ),
-        ToTensorV2(),
+        )
     ])
-    
-    return A.Compose(transforms_list)
 
 
-def apply_test_time_augmentation(image: np.ndarray, config: dict) -> list:
+def get_val_aug(size: int) -> transforms.Compose:
+    """Get validation augmentations: resize/center-crop + normalize only."""
+    return transforms.Compose([
+        transforms.Resize((size, size)),
+        transforms.CenterCrop(size),
+        transforms.ToTensor(),
+        transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225]
+        )
+    ])
+
+
+def apply_test_time_augmentation(image: torch.Tensor, config: dict) -> list:
     """Apply test-time augmentation for improved inference."""
     if not config['eval'].get('tta', False):
         return [image]
     
     image_size = config['data']['image_size']
     
+    base_transform = get_val_aug(image_size)
+    
     tta_transforms = [
-        A.Compose([
-            A.Resize(image_size, image_size),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ToTensorV2(),
+        base_transform,
+        transforms.Compose([
+            transforms.Resize((image_size, image_size)),
+            transforms.RandomHorizontalFlip(p=1.0),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ]),
-        A.Compose([
-            A.Resize(image_size, image_size),
-            A.HorizontalFlip(p=1.0),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ToTensorV2(),
-        ]),
-        A.Compose([
-            A.Resize(image_size, image_size),
-            A.Rotate(limit=5, p=1.0, border_mode=cv2.BORDER_CONSTANT, value=0),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ToTensorV2(),
-        ]),
-        A.Compose([
-            A.Resize(image_size, image_size),
-            A.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1, p=1.0),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ToTensorV2(),
+        transforms.Compose([
+            transforms.Resize((image_size, image_size)),
+            transforms.RandomRotation(degrees=5),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ]),
     ]
     
     augmented_images = []
     for transform in tta_transforms:
-        augmented = transform(image=image)['image']
+        if isinstance(image, torch.Tensor):
+            from torchvision.transforms.functional import to_pil_image
+            pil_image = to_pil_image(image)
+            augmented = transform(pil_image)
+        else:
+            augmented = transform(image)
         augmented_images.append(augmented)
     
     return augmented_images
 
 
-def visualize_augmentations(image: np.ndarray, config: dict, num_samples: int = 8):
+def visualize_augmentations(image, config: dict, num_samples: int = 8):
     """Visualize augmentation effects for debugging."""
     import matplotlib.pyplot as plt
+    import numpy as np
     
-    transform = get_albumentations_transforms(config, is_training=True)
+    transform = get_train_aug(config['data']['image_size'])
     
     fig, axes = plt.subplots(2, 4, figsize=(16, 8))
     axes = axes.flatten()
     
     for i in range(num_samples):
-        augmented = transform(image=image)['image']
+        augmented = transform(image)
         
-        if hasattr(augmented, 'numpy'):
+        if isinstance(augmented, torch.Tensor):
             augmented = augmented.numpy()
         
         mean = np.array([0.485, 0.456, 0.406])

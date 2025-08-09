@@ -14,7 +14,7 @@ from utils import get_device, set_seed
 
 
 def create_synthetic_dataset(
-    num_classes: int = 4,
+    num_classes: int = 6,
     samples_per_class: int = 20,
     image_size: int = 192,
     save_dir: str = None
@@ -31,7 +31,7 @@ def create_synthetic_dataset(
     variant_dir.mkdir(parents=True, exist_ok=True)
     splits_dir.mkdir(parents=True, exist_ok=True)
     
-    class_names = ["healthy", "bacterial_spot", "early_blight", "late_blight"][:num_classes]
+    class_names = ["healthy", "bacterial_spot", "early_blight", "late_blight", "mosaic_virus", "target_spot"][:num_classes]
     
     all_samples = []
     
@@ -124,6 +124,34 @@ def create_synthetic_plant_image(class_idx: int, size: int = 192) -> Image.Image
             y1, y2 = max(0, center_y - height//2), min(size, center_y + height//2)
             
             image[y1:y2, x1:x2] = image[y1:y2, x1:x2] * 0.3  # Darken the area
+    
+    elif class_idx == 4:  # Mosaic virus
+        num_patches = np.random.randint(8, 15)
+        for _ in range(num_patches):
+            center_x = np.random.randint(10, size - 10)
+            center_y = np.random.randint(10, size - 10)
+            radius = np.random.randint(5, 12)
+            
+            y, x = np.ogrid[:size, :size]
+            mask = (x - center_x)**2 + (y - center_y)**2 <= radius**2
+            
+            image[mask, 1] = np.clip(image[mask, 1] + 40, 0, 255)  # More green
+            image[mask, 2] = np.clip(image[mask, 2] + 60, 0, 255)  # More blue
+    
+    elif class_idx == 5:  # Target spot
+        num_rings = np.random.randint(3, 7)
+        for _ in range(num_rings):
+            center_x = np.random.randint(20, size - 20)
+            center_y = np.random.randint(20, size - 20)
+            outer_radius = np.random.randint(8, 15)
+            inner_radius = outer_radius - 3
+            
+            y, x = np.ogrid[:size, :size]
+            outer_mask = (x - center_x)**2 + (y - center_y)**2 <= outer_radius**2
+            inner_mask = (x - center_x)**2 + (y - center_y)**2 <= inner_radius**2
+            ring_mask = outer_mask & ~inner_mask
+            
+            image[ring_mask] = [80, 40, 20]  # Brown ring pattern
     
     noise = np.random.randint(-10, 10, image.shape, dtype=np.int16)
     image = np.clip(image.astype(np.int16) + noise, 0, 255).astype(np.uint8)
