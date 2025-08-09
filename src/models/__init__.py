@@ -3,4 +3,4 @@
 from .ann import HOGClassifier
 from .cnn import EfficientNetClassifier, MobileNetClassifier
 
-__all__ = ['EfficientNetClassifier', 'MobileNetClassifier', 'HOGClassifier']
+__all__ = ["EfficientNetClassifier", "MobileNetClassifier", "HOGClassifier"]

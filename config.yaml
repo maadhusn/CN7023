@@ -1,37 +1,37 @@
-data:
-  root: ""                  # empty -> synthetic mode
-  variant: "color"          # "color" | "grayscale" | "segmented"
-  image_size: 192
-  train_split: 0.70
+seed: 42
+subset_per_class: null   # if set (int), sampling happens when writing manifests
+
+dataset:
+  path: "C:/PlantVillage"
+  image_size: 224
+  train_split: 0.7
   val_split: 0.15
   test_split: 0.15
-  subset_per_class: 60      # dev/smoke; set null for full
-  use_masks: false
-  masks_subdir: "masks"
-  splits_dir: "splits"
 
-train:
-  model: "efficientnet_b0"  # or "mobilenet_v3_small"
-  epochs: 3
+training:
+  model: "resnet50"
+  epochs: 25
   batch_size: 32
-  lr: 0.0003
+  learning_rate: 0.001
   weight_decay: 0.0001
-  early_stop_patience: 2
   num_workers: 0
-  mixed_precision: false
-
-aug:
-  flip: true
-  rotation_deg: 10
-  color_jitter: 0.1
-  blur_p: 0.05
-
-eval:
-  tta: false
-  gradcam_samples: 4
-  save_dir: "report_assets"
 
 ann:
-  hog_pixels_per_cell: 16
-  hog_cells_per_block: 2
-  hog_bins: 9
+  downsample_size: 32
+  hidden1: 128
+  hidden2: 64
+  dropout: 0.2
+  lr: 0.001
+  epochs: 40
+
+gradcam:
+  samples: 24
+
+augmentation:
+  horizontal_flip: true
+  rotation_degrees: 15
+  random_crop_scale: [0.8, 1.0]
+  
+normalization:
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]

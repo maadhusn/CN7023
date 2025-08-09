@@ -1,0 +1,9 @@
+{
+  "best_val_accuracy": 27.916666666666668,
+  "test_accuracy": 25.833333333333332,
+  "epochs_trained": 16,
+  "feature_dim": 4363,
+  "num_classes": 4,
+  "model_architecture": "128->64->num_classes",
+  "dropout": 0.2
+}

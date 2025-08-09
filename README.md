@@ -1,158 +1,185 @@
-# CN7023 - PlantVillage Disease Classification
+# CN7023 - Plant Disease Classification (MSc Coursework)
 
-A PyTorch-based plant disease classification system with path-preserving data policies and synthetic testing capabilities.
+A comprehensive ResNet50-based plant disease classification system with ANN baseline comparison for MSc coursework using the PlantVillage dataset.
 
-## Key Features
+## Overview
 
-- **Path-Preserving Policy**: Never moves or renames dataset files
-- **Manifest-Based Splits**: Uses `<root>/splits/<variant>/{train,val,test}.txt` with relative paths
-- **Synthetic Mode**: Complete end-to-end testing without real datasets
-- **CPU-Safe Defaults**: Works on any machine without GPU requirements
-- **Flexible Architecture**: Supports both CNN (EfficientNet, MobileNet) and ANN (HOG) models
-- **Optional Segmentation**: Mask support with mirrored directory structure
+This project implements a complete machine learning pipeline for plant disease classification:
+- **CNN Model**: ResNet50 pretrained on ImageNet with custom classifier head
+- **ANN Baseline**: MLP trained on downsampled (32×32) RGB images for comparison
+- **Deterministic Splits**: Manifest-based train/val/test splits (70/15/15) for reproducibility
+- **Comprehensive Metrics**: Precision, recall, F1-score, confusion analysis
+- **Explainability**: Grad-CAM visualizations for CNN interpretability
+- **Windows Compatible**: Forward slash paths, num_workers=0, results/ directory
+- **Report Ready**: Automated generation of plots and paste-ready text summaries
 
-## Quick Start
+## Quick Setup
 
-### Installation
+### 1. Install Dependencies
 ```bash
-pip install -r requirements.txt
+pip install torch torchvision matplotlib seaborn scikit-learn pillow numpy pyyaml
 ```
 
-### Synthetic Smoke Test (No Dataset Required)
-```bash
-make smoke
+### 2. Dataset Setup
+Download the PlantVillage dataset and extract to:
+```
+C:\PlantVillage\
+├── Apple___Apple_scab\
+├── Apple___Black_rot\
+├── Apple___Cedar_apple_rust\
+├── Tomato___Late_blight\
+└── ... (other disease classes)
 ```
 
-This runs a complete synthetic demo that:
-- Creates synthetic plant disease images
-- Tests model training and inference
-- Validates the entire pipeline
-- Generates output artifacts
+## Run Order (Windows Workflow)
 
-### Using Real Data
+Execute the following commands in order for complete MSc coursework pipeline:
 
-1. **Prepare your dataset** following the path-preserving structure:
-```
-<root>/
-├── <variant>/           # "color", "grayscale", or "segmented"
-│   ├── class1/
-│   │   ├── img001.jpg
-│   │   └── ...
-│   └── class2/
-│       ├── img001.jpg
-│       └── ...
-├── splits/<variant>/
-│   ├── train.txt        # Relative paths: "class1/img001.jpg"
-│   ├── val.txt
-│   └── test.txt
-└── masks/<variant>/     # Optional, mirrors original structure
-    ├── class1/
-    │   ├── img001.png
-    │   └── ...
-    └── class2/
-        ├── img001.png
-        └── ...
+```bat
+:: 0) Generate deterministic splits + EDA
+python -m src.data --config config.yaml --regen-splits
+
+:: 1) (Optional) ANN baseline (downsampled)
+python train_ann_baseline.py --config config.yaml
+
+:: 2) Train CNN (ResNet50)
+python train.py --config config.yaml
+
+:: 3) Evaluate + Grad-CAM + metrics
+python eval.py --config config.yaml --gradcam 24
+
+:: 4) Export report visuals & text summaries
+python visualize_results.py --config config.yaml
 ```
 
-2. **Update config.yaml**:
-```yaml
-data:
-  root: "/path/to/your/dataset"  # Set to your dataset path
-  variant: "color"               # or "grayscale", "segmented"
-  subset_per_class: null         # Use full dataset
-```
+## Generated Files for Report
 
-3. **Train and evaluate**:
-```bash
-make train
-make eval
-```
+After running the complete pipeline, the following files will be available in `results/`:
+
+### Dataset Analysis
+- `class_distribution.png` - Bar chart of samples per class
+- `dataset_samples.png` - 4×4 grid of sample images from different classes
+
+### Training Results
+- `accuracy_curve.png` - Training/validation/test accuracy over epochs
+- `loss_curve.png` - Training/validation loss over epochs
+
+### Model Evaluation
+- `confusion_matrix.png` - Confusion matrix with per-class accuracy percentages
+- `per_class_accuracy.png` - Per-class accuracy bar chart with color coding
+- `classification_report.txt` - Detailed sklearn classification report
+- `metrics.json` - Comprehensive metrics (precision/recall/F1)
+- `top_confusions.csv` - Top 10 confused class pairs by count
+
+### Explainability & Visualization
+- `gradcam_correct_*.png` - Grad-CAM visualizations for correctly classified samples
+- `gradcam_missed_*__pred_vs_true__basename.png` - Grad-CAM for misclassified samples
+- `viz_pred_*.png` - OpenCV prediction overlays with confidence scores
+
+### ANN Baseline (if run)
+- `ann_curves.png` - ANN training curves
+- `ann_confusion_matrix.png` - ANN confusion matrix
+- `per_class_accuracy_ann.png` - ANN per-class accuracy
+- `ann_metrics.json` - ANN performance metrics
+
+### Report Text Summaries (Paste-Ready)
+- `summary_dataset.txt` - Dataset description for report
+- `summary_results.txt` - Results summary with key metrics
+- `summary_analysis.txt` - Critical analysis with confusion patterns
 
 ## Configuration
 
-Key settings in `config.yaml`:
+Edit parameters in `config.yaml`:
 
-- `data.root: ""` - Empty for synthetic mode, set path for real data
-- `data.variant` - Dataset variant: "color", "grayscale", or "segmented"
-- `data.subset_per_class` - Limit samples per class (for development)
-- `train.model` - Model architecture: "efficientnet_b0" or "mobilenet_v3_small"
-- `train.num_workers: 0` - CPU-safe data loading
+```yaml
+seed: 42                    # Reproducibility seed
+subset_per_class: null      # Limit samples per class (for development)
 
-## Available Models
+dataset:
+  path: "C:/PlantVillage"   # Dataset location
+  image_size: 224           # Input image size
+  train_split: 0.7          # Training set ratio
+  val_split: 0.15           # Validation set ratio
+  test_split: 0.15          # Test set ratio
 
-### CNN Models
-- **EfficientNet-B0**: Balanced accuracy and efficiency
-- **MobileNet-V3-Small**: Lightweight for mobile deployment
+training:
+  epochs: 25                # CNN training epochs
+  batch_size: 32            # Batch size
+  learning_rate: 0.001      # Learning rate
+  weight_decay: 0.0001      # Weight decay
 
-### ANN Models
-- **HOG + SVM**: Traditional computer vision approach
-- **Color Histogram + Texture**: Handcrafted feature extraction
+ann:
+  downsample_size: 32       # ANN input image size
+  hidden1: 128              # First hidden layer size
+  hidden2: 64               # Second hidden layer size
+  dropout: 0.2              # Dropout rate
+  lr: 0.001                 # ANN learning rate
+  epochs: 40                # ANN training epochs
 
-## Makefile Targets
-
-- `make smoke` - Synthetic end-to-end test
-- `make train` - Train CNN model
-- `make eval` - Evaluate trained model with GradCAM
-- `make features` - Extract features for ANN training
-- `make train-ann` - Train ANN model
-- `make fuse` - Ensemble CNN and ANN predictions
-
-## Path-Preserving Policies
-
-### Core Principles
-1. **Never move or rename dataset files** - Preserves original organization
-2. **Use manifest files** for train/val/test splits with relative paths
-3. **Optional masks mirror original tree** structure
-4. **No large data in repository** - Only code and small artifacts
-
-### Benefits
-- Easy integration with existing datasets
-- Reproducible splits across experiments
-- Clear separation of code and data
-- Supports multiple dataset variants
-
-## CI/CD Integration
-
-GitHub Actions workflow automatically:
-- Installs dependencies
-- Runs synthetic smoke test
-- Validates code quality with ruff and black
-
-## Output Structure
-
-```
-checkpoints/          # Model weights (gitignored)
-report_assets/        # Evaluation reports and visualizations
-├── gradcam_*.png    # GradCAM visualizations
-├── confusion_matrix.png
-└── classification_report.txt
+gradcam:
+  samples: 24               # Number of Grad-CAM samples
 ```
 
-## Publishing Large Models
+## Optional MATLAB Preprocessing
 
-For models >50MB, use GitHub Releases:
-```bash
-# Tag and create release
-git tag v1.0.0
-git push origin v1.0.0
+For advanced image preprocessing using MATLAB:
 
-# Upload large model files to release assets
-gh release create v1.0.0 checkpoints/best_model.pth
+### 1. Run MATLAB Preprocessing
+```matlab
+% In MATLAB command window
+addpath('matlab');
+leaf_preprocess('C:\PlantVillage', 'C:\PlantVillage_processed', 'color');
 ```
 
-## Development
-
-### Code Quality
-```bash
-ruff check .          # Linting
-black .               # Formatting
+### 2. Update Configuration
+```yaml
+dataset:
+  path: "C:/PlantVillage_processed"  # Use processed dataset
 ```
 
-### Testing
-```bash
-make smoke            # Quick synthetic test
-python -m pytest     # Full test suite (if available)
-```
+The MATLAB script applies:
+- HSV color space conversion
+- S-channel thresholding for vegetation detection
+- Morphological operations (opening, closing)
+- Largest connected component selection
+- Histogram equalization on V channel
+
+## Model Architecture
+
+### CNN (ResNet50)
+- **Base Model**: ResNet50 pretrained on ImageNet
+- **Classifier Head**: Single linear layer (2048 → num_classes)
+- **Optimizer**: Adam with weight decay
+- **Augmentations**: Horizontal flip, rotation, random crop (training only)
+- **Normalization**: ImageNet mean/std values
+
+### ANN Baseline (MLP)
+- **Input**: Flattened 32×32×3 RGB images (3072 features)
+- **Architecture**: 3072 → 128 → 64 → num_classes
+- **Activation**: ReLU with 0.2 dropout
+- **Purpose**: Baseline comparison to demonstrate CNN effectiveness
+
+## Expected Results
+
+- **CNN Accuracy**: Typically 85-95% on PlantVillage test set
+- **ANN Accuracy**: Typically 60-75% (demonstrates CNN superiority)
+- **Training Time**: ~2-4 hours for CNN, ~30 minutes for ANN
+- **Generated Files**: 15+ visualization files + metrics + text summaries
+
+## Windows Compatibility
+
+- All paths use forward slashes or `os.path.join()`
+- `num_workers=0` in all DataLoaders
+- No Unix-specific commands
+- Results saved to `results/` directory
+- Batch file commands provided for workflow
+
+## Troubleshooting
+
+- **Memory Issues**: Reduce `batch_size` in config.yaml
+- **Slow Training**: Reduce `epochs` or use `subset_per_class`
+- **Path Errors**: Ensure dataset is at exact path `C:\PlantVillage\`
+- **Missing Files**: Run commands in exact order shown above
 
 ## License
 
