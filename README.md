@@ -13,6 +13,36 @@ This project implements a complete machine learning pipeline for plant disease c
 - **Windows Compatible**: Forward slash paths, num_workers=0, results/ directory
 - **Report Ready**: Automated generation of plots and paste-ready text summaries
 
+## Files Included
+
+### Core Training & Evaluation Scripts
+- `train.py` - ResNet50 CNN training with manifest-based data loading
+- `eval.py` - Enhanced evaluation with comprehensive metrics and Grad-CAM integration
+- `visualize_results.py` - Generate all report-ready plots and text summaries
+
+### ANN Baseline
+- `train_ann_baseline.py` - MLP baseline training on downsampled (32×32) images
+- `ann_dataset.py` - Dataset loader for downsampled images from manifests
+
+### Explainability & Visualization
+- `gradcam.py` - Grad-CAM visualization for CNN interpretability
+- `cv_viz.py` - OpenCV prediction overlays with confidence scores
+
+### MATLAB Preprocessing (Optional)
+- `matlab/leaf_preprocess.m` - HSV thresholding and morphological operations
+
+### Configuration & Documentation
+- `config.yaml` - All training parameters and dataset configuration
+- `requirements.txt` - Python dependencies
+- `README.md` - Complete documentation and Windows workflow
+- `LICENSE` - MIT license
+
+### Output Directories
+- `results/` - All generated plots, metrics, and model checkpoints
+- `report_assets/` - Additional assets (kept for compatibility)
+
+**Note**: This repository supports only Windows flat layout with dataset at `C:\PlantVillage\`.
+
 ## Quick Setup
 
 ### 1. Install Dependencies
@@ -36,9 +66,6 @@ C:\PlantVillage\
 Execute the following commands in order for complete MSc coursework pipeline:
 
 ```bat
-:: 0) Generate deterministic splits + EDA
-python -m src.data --config config.yaml --regen-splits
-
 :: 1) (Optional) ANN baseline (downsampled)
 python train_ann_baseline.py --config config.yaml
 

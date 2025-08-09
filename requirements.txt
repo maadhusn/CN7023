@@ -5,3 +5,6 @@ seaborn
 scikit-learn
 pillow
 numpy
+pyyaml
+pandas
+opencv-python
