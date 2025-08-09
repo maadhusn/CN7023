@@ -1,3 +1,6 @@
+seed: 42
+subset_per_class: null   # if set (int), sampling happens when writing manifests
+
 dataset:
   path: "C:/PlantVillage"
   image_size: 224
@@ -12,6 +15,17 @@ training:
   learning_rate: 0.001
   weight_decay: 0.0001
   num_workers: 0
+
+ann:
+  downsample_size: 32
+  hidden1: 128
+  hidden2: 64
+  dropout: 0.2
+  lr: 0.001
+  epochs: 40
+
+gradcam:
+  samples: 24
 
 augmentation:
   horizontal_flip: true

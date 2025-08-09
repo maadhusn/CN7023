@@ -27,6 +27,15 @@ def load_results():
     return results
 
 
+def load_ann_results():
+    """Load ANN baseline results if available."""
+    ann_path = os.path.join(RESULTS_PATH, 'ann_metrics.json')
+    if os.path.exists(ann_path):
+        with open(ann_path, 'r') as f:
+            return json.load(f)
+    return None
+
+
 def analyze_dataset():
     """Analyze dataset and generate overview statistics."""
     print("=" * 60)
@@ -293,6 +302,9 @@ def main():
     print("Loading training results...")
     results = load_results()
     
+    print("Loading ANN baseline results...")
+    ann_results = load_ann_results()
+    
     dataset, class_counts = analyze_dataset()
     
     print("Generating sample images grid...")
@@ -319,6 +331,23 @@ def main():
     print("- loss_curve.png")
     print("- confusion_matrix.png")
     print("- per_class_accuracy.png")
+    
+    if ann_results:
+        print("- ann_curves.png")
+        print("- ann_confusion_matrix.png")
+        print("- per_class_accuracy_ann.png")
+        print(f"\nANN Baseline Comparison:")
+        print(f"CNN Test Accuracy: {results['test_acc']:.2f}%")
+        print(f"ANN Test Accuracy: {ann_results['test_acc']:.2f}%")
+        print(f"Performance Gap: {results['test_acc'] - ann_results['test_acc']:.2f}%")
+    
+    print("\nAdditional files (if eval.py was run):")
+    print("- gradcam_*.png (Grad-CAM visualizations)")
+    print("- viz_pred_*.png (OpenCV prediction overlays)")
+    print("- metrics.json (comprehensive metrics)")
+    print("- classification_report.txt (sklearn report)")
+    print("- top_confusions.csv (confusion analysis)")
+    print("- summary_*.txt (paste-ready report text)")
     print("\nCopy the text summaries above directly into your report sections.")
 
 

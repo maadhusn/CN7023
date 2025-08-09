@@ -1,72 +1,15 @@
-"""Simplified training script for MSc coursework using ResNet50 and ImageFolder."""
+"""Training script for MSc coursework using manifest-based data loading."""
 
 import os
+import argparse
+import yaml
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, random_split
-from torchvision import datasets, transforms, models
+from torchvision import models
 import json
 
-DATASET_PATH = "C:/PlantVillage"
-N_EPOCHS = 25
-BATCH_SIZE = 32
-LEARNING_RATE = 0.001
-WEIGHT_DECAY = 1e-4
-IMAGE_SIZE = 224
-TRAIN_SPLIT = 0.7
-VAL_SPLIT = 0.15
-TEST_SPLIT = 0.15
-
-IMAGENET_MEAN = [0.485, 0.456, 0.406]
-IMAGENET_STD = [0.229, 0.224, 0.225]
-
-
-def get_transforms():
-    """Get training and validation transforms."""
-    train_transform = transforms.Compose([
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomRotation(degrees=15),
-        transforms.RandomResizedCrop(IMAGE_SIZE, scale=(0.8, 1.0)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-    ])
-    
-    val_test_transform = transforms.Compose([
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-    ])
-    
-    return train_transform, val_test_transform
-
-
-def create_data_loaders():
-    """Create train/val/test data loaders using ImageFolder."""
-    train_transform, val_test_transform = get_transforms()
-    
-    full_dataset = datasets.ImageFolder(root=DATASET_PATH, transform=None)
-    
-    total_size = len(full_dataset)
-    train_size = int(TRAIN_SPLIT * total_size)
-    val_size = int(VAL_SPLIT * total_size)
-    test_size = total_size - train_size - val_size
-    
-    train_dataset, val_dataset, test_dataset = random_split(
-        full_dataset, [train_size, val_size, test_size],
-        generator=torch.Generator().manual_seed(42)
-    )
-    
-    train_dataset.dataset.transform = train_transform
-    val_dataset.dataset.transform = val_test_transform
-    test_dataset.dataset.transform = val_test_transform
-    
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
-    
-    return train_loader, val_loader, test_loader, full_dataset.classes
+from src.data import create_data_loaders, set_seed
 
 
 def create_resnet50_model(num_classes):
@@ -160,13 +103,35 @@ def test_model(model, test_loader, device):
 
 def main():
     """Main training function."""
+    parser = argparse.ArgumentParser(description='Train ResNet50 model')
+    parser.add_argument('--config', default='config.yaml', help='Config file path')
+    args = parser.parse_args()
+    
+    config = {}
+    if os.path.exists(args.config):
+        with open(args.config, 'r') as f:
+            config = yaml.safe_load(f)
+    
+    set_seed(config.get('seed', 42))
+    
+    training_config = config.get('training', {})
+    dataset_config = config.get('dataset', {})
+    
+    epochs = training_config.get('epochs', 25)
+    batch_size = training_config.get('batch_size', 32)
+    learning_rate = training_config.get('learning_rate', 0.001)
+    weight_decay = training_config.get('weight_decay', 0.0001)
+    image_size = dataset_config.get('image_size', 224)
+    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
     
     os.makedirs('results', exist_ok=True)
     
-    print("Creating data loaders...")
-    train_loader, val_loader, test_loader, class_names = create_data_loaders()
+    print("Creating data loaders from manifests...")
+    train_loader, val_loader, test_loader, class_names = create_data_loaders(
+        batch_size=batch_size, image_size=image_size, config_path=args.config
+    )
     
     num_classes = len(class_names)
     print(f"Number of classes: {num_classes}")
@@ -180,17 +145,17 @@ def main():
     model = model.to(device)
     
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     
     train_losses = []
     val_losses = []
     train_accs = []
     val_accs = []
     
-    print(f"Starting training for {N_EPOCHS} epochs...")
+    print(f"Starting training for {epochs} epochs...")
     
-    for epoch in range(N_EPOCHS):
-        print(f"\nEpoch {epoch+1}/{N_EPOCHS}")
+    for epoch in range(epochs):
+        print(f"\nEpoch {epoch+1}/{epochs}")
         print("-" * 50)
         
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
@@ -223,11 +188,11 @@ def main():
         'class_names': class_names,
         'num_classes': num_classes,
         'hyperparameters': {
-            'epochs': N_EPOCHS,
-            'batch_size': BATCH_SIZE,
-            'learning_rate': LEARNING_RATE,
-            'weight_decay': WEIGHT_DECAY,
-            'image_size': IMAGE_SIZE
+            'epochs': epochs,
+            'batch_size': batch_size,
+            'learning_rate': learning_rate,
+            'weight_decay': weight_decay,
+            'image_size': image_size
         }
     }
     

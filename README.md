@@ -1,20 +1,23 @@
 # CN7023 - Plant Disease Classification (MSc Coursework)
 
-A simplified ResNet50-based plant disease classification system for MSc coursework using the PlantVillage dataset.
+A comprehensive ResNet50-based plant disease classification system with ANN baseline comparison for MSc coursework using the PlantVillage dataset.
 
 ## Overview
 
-This project implements a deep learning solution for plant disease classification using:
-- **ResNet50** pretrained model with custom classifier head
-- **ImageFolder** data loading with train/val/test splits (70/15/15)
-- **Windows-compatible** paths and operations
-- **Comprehensive visualizations** for report generation
+This project implements a complete machine learning pipeline for plant disease classification:
+- **CNN Model**: ResNet50 pretrained on ImageNet with custom classifier head
+- **ANN Baseline**: MLP trained on downsampled (32×32) RGB images for comparison
+- **Deterministic Splits**: Manifest-based train/val/test splits (70/15/15) for reproducibility
+- **Comprehensive Metrics**: Precision, recall, F1-score, confusion analysis
+- **Explainability**: Grad-CAM visualizations for CNN interpretability
+- **Windows Compatible**: Forward slash paths, num_workers=0, results/ directory
+- **Report Ready**: Automated generation of plots and paste-ready text summaries
 
 ## Quick Setup
 
 ### 1. Install Dependencies
 ```bash
-pip install torch torchvision matplotlib seaborn scikit-learn pillow numpy
+pip install torch torchvision matplotlib seaborn scikit-learn pillow numpy pyyaml
 ```
 
 ### 2. Dataset Setup
@@ -28,66 +31,155 @@ C:\PlantVillage\
 └── ... (other disease classes)
 ```
 
-### 3. Run Training
-```bash
-python train.py
+## Run Order (Windows Workflow)
+
+Execute the following commands in order for complete MSc coursework pipeline:
+
+```bat
+:: 0) Generate deterministic splits + EDA
+python -m src.data --config config.yaml --regen-splits
+
+:: 1) (Optional) ANN baseline (downsampled)
+python train_ann_baseline.py --config config.yaml
+
+:: 2) Train CNN (ResNet50)
+python train.py --config config.yaml
+
+:: 3) Evaluate + Grad-CAM + metrics
+python eval.py --config config.yaml --gradcam 24
+
+:: 4) Export report visuals & text summaries
+python visualize_results.py --config config.yaml
 ```
 
-### 4. Generate Visualizations
-```bash
-python visualize_results.py
-```
+## Generated Files for Report
 
-## Usage
+After running the complete pipeline, the following files will be available in `results/`:
 
-### Training the Model
-The `train.py` script will:
-- Load data using ImageFolder from `C:/PlantVillage`
-- Split into train/val/test (70/15/15) with random_split
-- Train ResNet50 for configurable epochs (default: 25)
-- Apply augmentations only to training set
-- Save model and training history to `results/`
+### Dataset Analysis
+- `class_distribution.png` - Bar chart of samples per class
+- `dataset_samples.png` - 4×4 grid of sample images from different classes
 
-### Generating Report Visualizations
-The `visualize_results.py` script creates all plots needed for your report:
-- `results/class_distribution.png` - Dataset class distribution
-- `results/dataset_samples.png` - 4×4 grid of sample images
-- `results/accuracy_curve.png` - Training/validation/test accuracy
-- `results/loss_curve.png` - Training/validation loss
-- `results/confusion_matrix.png` - Confusion matrix with percentages
-- `results/per_class_accuracy.png` - Per-class accuracy bar chart
+### Training Results
+- `accuracy_curve.png` - Training/validation/test accuracy over epochs
+- `loss_curve.png` - Training/validation loss over epochs
 
-**Report text summaries** are printed to console for copy-paste into report sections.
+### Model Evaluation
+- `confusion_matrix.png` - Confusion matrix with per-class accuracy percentages
+- `per_class_accuracy.png` - Per-class accuracy bar chart with color coding
+- `classification_report.txt` - Detailed sklearn classification report
+- `metrics.json` - Comprehensive metrics (precision/recall/F1)
+- `top_confusions.csv` - Top 10 confused class pairs by count
+
+### Explainability & Visualization
+- `gradcam_correct_*.png` - Grad-CAM visualizations for correctly classified samples
+- `gradcam_missed_*__pred_vs_true__basename.png` - Grad-CAM for misclassified samples
+- `viz_pred_*.png` - OpenCV prediction overlays with confidence scores
+
+### ANN Baseline (if run)
+- `ann_curves.png` - ANN training curves
+- `ann_confusion_matrix.png` - ANN confusion matrix
+- `per_class_accuracy_ann.png` - ANN per-class accuracy
+- `ann_metrics.json` - ANN performance metrics
+
+### Report Text Summaries (Paste-Ready)
+- `summary_dataset.txt` - Dataset description for report
+- `summary_results.txt` - Results summary with key metrics
+- `summary_analysis.txt` - Critical analysis with confusion patterns
 
 ## Configuration
 
-Edit the constants in `train.py` to modify training parameters:
-- `N_EPOCHS = 25` - Number of training epochs
-- `BATCH_SIZE = 32` - Batch size
-- `LEARNING_RATE = 0.001` - Learning rate
-- `IMAGE_SIZE = 224` - Input image size
+Edit parameters in `config.yaml`:
+
+```yaml
+seed: 42                    # Reproducibility seed
+subset_per_class: null      # Limit samples per class (for development)
+
+dataset:
+  path: "C:/PlantVillage"   # Dataset location
+  image_size: 224           # Input image size
+  train_split: 0.7          # Training set ratio
+  val_split: 0.15           # Validation set ratio
+  test_split: 0.15          # Test set ratio
+
+training:
+  epochs: 25                # CNN training epochs
+  batch_size: 32            # Batch size
+  learning_rate: 0.001      # Learning rate
+  weight_decay: 0.0001      # Weight decay
+
+ann:
+  downsample_size: 32       # ANN input image size
+  hidden1: 128              # First hidden layer size
+  hidden2: 64               # Second hidden layer size
+  dropout: 0.2              # Dropout rate
+  lr: 0.001                 # ANN learning rate
+  epochs: 40                # ANN training epochs
+
+gradcam:
+  samples: 24               # Number of Grad-CAM samples
+```
+
+## Optional MATLAB Preprocessing
+
+For advanced image preprocessing using MATLAB:
+
+### 1. Run MATLAB Preprocessing
+```matlab
+% In MATLAB command window
+addpath('matlab');
+leaf_preprocess('C:\PlantVillage', 'C:\PlantVillage_processed', 'color');
+```
+
+### 2. Update Configuration
+```yaml
+dataset:
+  path: "C:/PlantVillage_processed"  # Use processed dataset
+```
+
+The MATLAB script applies:
+- HSV color space conversion
+- S-channel thresholding for vegetation detection
+- Morphological operations (opening, closing)
+- Largest connected component selection
+- Histogram equalization on V channel
 
 ## Model Architecture
 
+### CNN (ResNet50)
 - **Base Model**: ResNet50 pretrained on ImageNet
 - **Classifier Head**: Single linear layer (2048 → num_classes)
 - **Optimizer**: Adam with weight decay
 - **Augmentations**: Horizontal flip, rotation, random crop (training only)
 - **Normalization**: ImageNet mean/std values
 
-## Windows Compatibility
-
-- All paths use forward slashes or `os.path.join()`
-- `num_workers=0` in DataLoaders
-- No Unix-specific commands
-- Results saved to `results/` directory
+### ANN Baseline (MLP)
+- **Input**: Flattened 32×32×3 RGB images (3072 features)
+- **Architecture**: 3072 → 128 → 64 → num_classes
+- **Activation**: ReLU with 0.2 dropout
+- **Purpose**: Baseline comparison to demonstrate CNN effectiveness
 
 ## Expected Results
 
-- **Training Time**: ~2-4 hours for 25 epochs (depending on dataset size and hardware)
-- **Accuracy**: Typically 85-95% on PlantVillage test set
-- **Model Size**: ~100MB for ResNet50 weights
-- **Generated Files**: 6 PNG plots + model weights + training metrics JSON
+- **CNN Accuracy**: Typically 85-95% on PlantVillage test set
+- **ANN Accuracy**: Typically 60-75% (demonstrates CNN superiority)
+- **Training Time**: ~2-4 hours for CNN, ~30 minutes for ANN
+- **Generated Files**: 15+ visualization files + metrics + text summaries
+
+## Windows Compatibility
+
+- All paths use forward slashes or `os.path.join()`
+- `num_workers=0` in all DataLoaders
+- No Unix-specific commands
+- Results saved to `results/` directory
+- Batch file commands provided for workflow
+
+## Troubleshooting
+
+- **Memory Issues**: Reduce `batch_size` in config.yaml
+- **Slow Training**: Reduce `epochs` or use `subset_per_class`
+- **Path Errors**: Ensure dataset is at exact path `C:\PlantVillage\`
+- **Missing Files**: Run commands in exact order shown above
 
 ## License
 
