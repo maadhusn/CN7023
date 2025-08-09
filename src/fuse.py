@@ -204,12 +204,76 @@ def evaluate_fusion_methods(
     return results
 
 
+def load_mlp_model(device: torch.device) -> torch.nn.Module:
+    """Load trained MLP model."""
+    import pickle
+    from models.ann import MLP
+    
+    state_dict_path = "checkpoints/small_ann_state.pt"
+    scaler_path = "checkpoints/ann_scaler.pkl"
+    
+    if not os.path.exists(state_dict_path):
+        raise FileNotFoundError(f"MLP state dict not found: {state_dict_path}")
+    if not os.path.exists(scaler_path):
+        raise FileNotFoundError(f"Feature scaler not found: {scaler_path}")
+    
+    with open(scaler_path, 'rb') as f:
+        scaler = pickle.load(f)
+    
+    with open("report_assets/ann_metrics.json", 'r') as f:
+        ann_metrics = json.load(f)
+    
+    input_dim = ann_metrics['feature_dim']
+    num_classes = ann_metrics['num_classes']
+    
+    model = MLP(input_dim, num_classes).to(device)
+    model.load_state_dict(torch.load(state_dict_path, map_location=device))
+    model.eval()
+    
+    return model, scaler
+
+
+def get_mlp_predictions(
+    model: torch.nn.Module,
+    scaler,
+    features: np.ndarray,
+    labels: np.ndarray,
+    device: torch.device
+) -> tuple:
+    """Get MLP predictions and probabilities."""
+    features_scaled = scaler.transform(features)
+    
+    dataset = torch.utils.data.TensorDataset(
+        torch.FloatTensor(features_scaled),
+        torch.LongTensor(labels)
+    )
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=False)
+    
+    all_predictions = []
+    all_probabilities = []
+    all_targets = []
+    
+    model.eval()
+    with torch.no_grad():
+        for batch_features, batch_labels in data_loader:
+            batch_features = batch_features.to(device)
+            
+            outputs = model(batch_features)
+            probabilities = F.softmax(outputs, dim=1)
+            predictions = torch.argmax(outputs, dim=1)
+            
+            all_predictions.extend(predictions.cpu().numpy())
+            all_probabilities.extend(probabilities.cpu().numpy())
+            all_targets.extend(batch_labels.numpy())
+    
+    return np.array(all_predictions), np.array(all_probabilities), np.array(all_targets)
+
+
 def main():
     """Main fusion function."""
     config = load_config()
     
     set_seed(42)
-    
     device = get_device()
     
     print("Loading models and data...")
@@ -217,122 +281,79 @@ def main():
     model_name = config['train']['model']
     checkpoint_dir = Path("checkpoints")
     
-    cnn_model_path = checkpoint_dir / f"{model_name}_best.pth"
-    if not cnn_model_path.exists():
-        cnn_model_path = checkpoint_dir / f"{model_name}_final.pth"
-    
-    if not cnn_model_path.exists():
+    state_dict_path = checkpoint_dir / f"small_{model_name}_state.pt"
+    if not state_dict_path.exists():
         print("CNN model not found. Please train CNN first.")
         return
     
-    cnn_model, model_config, class_names = load_trained_model(str(cnn_model_path), device)
-    print(f"Loaded CNN model: {cnn_model_path}")
+    from models.cnn import create_model
+    num_classes = len(config.get('classes', ['class_0', 'class_1', 'class_2', 'class_3']))
+    cnn_model = create_model(model_name, num_classes, pretrained=False)
+    cnn_model.load_state_dict(torch.load(state_dict_path, map_location=device))
+    cnn_model = cnn_model.to(device)
+    cnn_model.eval()
+    print(f"Loaded CNN model: {state_dict_path}")
     
-    ann_model_path = "checkpoints/ann_best_model.pkl"
-    if not os.path.exists(ann_model_path):
-        print("ANN model not found. Please train ANN first.")
+    try:
+        mlp_model, scaler = load_mlp_model(device)
+        print("Loaded MLP model: checkpoints/small_ann_state.pt")
+    except FileNotFoundError as e:
+        print(f"MLP model not found: {e}")
         return
-    
-    ann_model = load_ann_model(ann_model_path)
-    print(f"Loaded ANN model: {ann_model_path}")
     
     train_loader, val_loader, test_loader = create_data_loaders(config)
     
-    try:
-        features, labels = load_features()
-    except FileNotFoundError:
-        print("Features not found. Please run feature extraction first.")
-        return
+    from features import extract_features_from_loader
+    print("Extracting features for fusion...")
+    X_test, y_test, _ = extract_features_from_loader(test_loader, config, "test")
     
-    print("\nGetting validation predictions...")
+    class_names = [f"class_{i}" for i in range(num_classes)]
     
-    cnn_val_preds, cnn_val_probs, val_targets = get_cnn_predictions(
-        cnn_model, val_loader, device
-    )
-    
-    ann_val_preds, ann_val_probs, _ = get_ann_predictions(
-        ann_model, features['val'], labels['val']
-    )
-    
-    cnn_val_acc = accuracy_score(val_targets, cnn_val_preds)
-    ann_val_acc = accuracy_score(val_targets, ann_val_preds)
-    
-    print(f"CNN validation accuracy: {cnn_val_acc:.4f}")
-    print(f"ANN validation accuracy: {ann_val_acc:.4f}")
-    
-    print("\nEvaluating fusion methods on validation set...")
-    val_fusion_results = evaluate_fusion_methods(
-        cnn_val_probs, ann_val_probs, val_targets, class_names
-    )
-    
-    best_method = max(val_fusion_results.keys(), 
-                     key=lambda k: val_fusion_results[k]['accuracy'])
-    
-    print(f"\nBest fusion method: {best_method}")
-    print(f"Best validation accuracy: {val_fusion_results[best_method]['accuracy']:.4f}")
-    
-    print(f"\nTesting with {best_method} on test set...")
+    print("\nGetting test predictions...")
     
     cnn_test_preds, cnn_test_probs, test_targets = get_cnn_predictions(
         cnn_model, test_loader, device
     )
     
-    ann_test_preds, ann_test_probs, _ = get_ann_predictions(
-        ann_model, features['test'], labels['test']
+    ann_test_preds, ann_test_probs, _ = get_mlp_predictions(
+        mlp_model, scaler, X_test, y_test, device
     )
-    
-    best_fusion = EnsembleFusion(fusion_method=best_method)
-    
-    if best_method == 'learned_weights':
-        best_fusion.fit(cnn_val_probs, ann_val_probs, val_targets)
-    else:
-        best_fusion.is_fitted = True
-    
-    fused_test_preds, fused_test_probs = best_fusion.predict(
-        cnn_test_probs, ann_test_probs
-    )
-    
-    test_metrics = calculate_metrics(test_targets, fused_test_preds, class_names)
     
     cnn_test_acc = accuracy_score(test_targets, cnn_test_preds)
     ann_test_acc = accuracy_score(test_targets, ann_test_preds)
     
-    print("\n" + "="*50)
-    print("FINAL TEST RESULTS")
-    print("="*50)
-    print(f"CNN Test Accuracy: {cnn_test_acc:.4f}")
-    print(f"ANN Test Accuracy: {ann_test_acc:.4f}")
-    print(f"Fused Test Accuracy: {test_metrics['accuracy']:.4f}")
-    print(f"Improvement over CNN: {test_metrics['accuracy'] - cnn_test_acc:+.4f}")
-    print(f"Improvement over ANN: {test_metrics['accuracy'] - ann_test_acc:+.4f}")
+    fused_probs = 0.5 * cnn_test_probs + 0.5 * ann_test_probs
+    fused_preds = np.argmax(fused_probs, axis=1)
+    fused_test_acc = accuracy_score(test_targets, fused_preds)
+    
+    print("\n" + "="*60)
+    print("COMPARISON TABLE: ANN vs CNN vs Fusion")
+    print("="*60)
+    print(f"{'Method':<15} {'Accuracy':<10} {'Improvement':<12}")
+    print("-" * 60)
+    print(f"{'ANN':<15} {ann_test_acc:<10.4f} {'-':<12}")
+    print(f"{'CNN':<15} {cnn_test_acc:<10.4f} {cnn_test_acc - ann_test_acc:+.4f}")
+    print(f"{'Fusion':<15} {fused_test_acc:<10.4f} {fused_test_acc - max(ann_test_acc, cnn_test_acc):+.4f}")
+    print("="*60)
     
     os.makedirs("report_assets", exist_ok=True)
     
-    fusion_results = {
-        'validation_results': val_fusion_results,
-        'best_method': best_method,
-        'test_results': {
-            'cnn_accuracy': cnn_test_acc,
-            'ann_accuracy': ann_test_acc,
-            'fused_accuracy': test_metrics['accuracy'],
-            'fused_metrics': test_metrics,
-            'fusion_weights': {
-                'cnn': best_fusion.cnn_weight,
-                'ann': best_fusion.ann_weight
-            }
-        }
+    fusion_metrics = {
+        'ann_accuracy': ann_test_acc,
+        'cnn_accuracy': cnn_test_acc,
+        'fusion_accuracy': fused_test_acc,
+        'improvement_over_ann': fused_test_acc - ann_test_acc,
+        'improvement_over_cnn': fused_test_acc - cnn_test_acc,
+        'improvement_over_best': fused_test_acc - max(ann_test_acc, cnn_test_acc),
+        'fusion_method': 'weighted_average',
+        'fusion_weights': {'cnn': 0.5, 'ann': 0.5}
     }
     
-    save_metrics(fusion_results, "report_assets/fusion_results.json")
+    with open("report_assets/fusion_metrics.json", 'w') as f:
+        json.dump(fusion_metrics, f, indent=2)
     
-    cm = np.array(test_metrics['confusion_matrix'])
-    plot_confusion_matrix(
-        cm, class_names,
-        save_path="report_assets/fusion_confusion_matrix.png"
-    )
-    
+    print(f"\nFusion metrics saved to report_assets/fusion_metrics.json")
     print("\nFusion evaluation completed!")
-    print("Check report_assets/ for detailed results.")
 
 
 if __name__ == "__main__":

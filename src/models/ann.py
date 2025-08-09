@@ -1,4 +1,4 @@
-"""ANN model using HOG features for plant disease classification."""
+"""ANN model using handcrafted features for plant disease classification."""
 
 import pickle
 from pathlib import Path
@@ -6,6 +6,9 @@ from typing import Optional, Tuple
 
 import cv2
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report
@@ -278,3 +281,24 @@ class HOGClassifier:
             self.texture_extractor = model_data['texture_extractor']
         
         self.is_fitted = True
+
+
+class MLP(nn.Module):
+    """Multi-Layer Perceptron for feature-based classification."""
+    
+    def __init__(self, input_dim: int, num_classes: int, dropout: float = 0.2):
+        super(MLP, self).__init__()
+        
+        self.fc1 = nn.Linear(input_dim, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, num_classes)
+        self.dropout = nn.Dropout(dropout)
+        self.relu = nn.ReLU()
+        
+    def forward(self, x):
+        x = self.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = self.fc3(x)
+        return x

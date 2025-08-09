@@ -3,7 +3,7 @@
 import os
 import pickle
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import cv2
 import numpy as np
@@ -14,26 +14,113 @@ from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
 from data import create_data_loaders, load_config
-from models.ann import HOGFeatureExtractor, ColorHistogramExtractor, TextureFeatureExtractor
 from utils import set_seed
+
+
+def extract_hsv_features(image: np.ndarray, mask: np.ndarray = None) -> np.ndarray:
+    """Extract HSV mean and std features (3x2 = 6 features)."""
+    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    
+    if mask is not None:
+        hsv_masked = hsv[mask > 0]
+        if len(hsv_masked) == 0:
+            return np.zeros(6)
+        mean_vals = np.mean(hsv_masked, axis=0)
+        std_vals = np.std(hsv_masked, axis=0)
+    else:
+        mean_vals = np.mean(hsv.reshape(-1, 3), axis=0)
+        std_vals = np.std(hsv.reshape(-1, 3), axis=0)
+    
+    return np.concatenate([mean_vals, std_vals])
+
+
+def extract_hog_features(image: np.ndarray, config: dict) -> np.ndarray:
+    """Extract HOG features (downsampled)."""
+    from skimage.feature import hog
+    
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    else:
+        gray = image
+    
+    ann_config = config['ann']
+    
+    features = hog(
+        gray,
+        orientations=ann_config['hog_bins'],
+        pixels_per_cell=(ann_config['hog_pixels_per_cell'], ann_config['hog_pixels_per_cell']),
+        cells_per_block=(ann_config['hog_cells_per_block'], ann_config['hog_cells_per_block']),
+        block_norm='L2-Hys',
+        visualize=False,
+        feature_vector=True
+    )
+    
+    return features
+
+
+def extract_area_ratio(image: np.ndarray, mask: np.ndarray = None) -> float:
+    """Extract area ratio feature."""
+    if mask is not None:
+        foreground_area = np.sum(mask > 0)
+        total_area = mask.size
+    else:
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        foreground_area = np.sum(binary > 0)
+        total_area = binary.size
+    
+    return foreground_area / total_area if total_area > 0 else 0.0
+
+
+def extract_features_from_image(image_path: str, config: dict, mask_path: str = None) -> np.ndarray:
+    """Extract all features from a single image."""
+    image = cv2.imread(image_path)
+    if image is None:
+        raise ValueError(f"Could not load image: {image_path}")
+    
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    
+    mask = None
+    if mask_path and os.path.exists(mask_path):
+        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+    
+    features = []
+    
+    hsv_features = extract_hsv_features(image, mask)
+    features.extend(hsv_features)
+    
+    hog_features = extract_hog_features(image, config)
+    features.extend(hog_features)
+    
+    area_ratio = extract_area_ratio(image, mask)
+    features.append(area_ratio)
+    
+    return np.array(features)
 
 
 def extract_features_from_loader(
     data_loader: torch.utils.data.DataLoader,
-    feature_extractors: dict,
-    max_samples: int = None
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Extract features from a data loader."""
+    config: dict,
+    split_name: str,
+    cache_dir: str = "report_assets/features"
+) -> Tuple[np.ndarray, np.ndarray, List[str]]:
+    """Extract features from a data loader and cache to NPZ."""
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, f"features_{split_name}.npz")
+    
+    if os.path.exists(cache_file):
+        print(f"Loading cached features from {cache_file}")
+        data = np.load(cache_file, allow_pickle=True)
+        return data['features'], data['labels'], data['paths'].tolist()
+    
     all_features = []
     all_labels = []
+    all_paths = []
     
-    samples_processed = 0
+    print(f"Extracting features for {split_name} split...")
     
-    for batch_idx, (data, targets) in enumerate(tqdm(data_loader, desc="Extracting features")):
+    for batch_idx, (data, targets) in enumerate(tqdm(data_loader, desc=f"Extracting {split_name} features")):
         for i in range(data.size(0)):
-            if max_samples and samples_processed >= max_samples:
-                break
-            
             image_tensor = data[i]
             image_np = image_tensor.numpy().transpose(1, 2, 0)
             
@@ -43,24 +130,32 @@ def extract_features_from_loader(
             image_np = np.clip(image_np, 0, 1)
             image_np = (image_np * 255).astype(np.uint8)
             
-            sample_features = []
+            synthetic_path = f"synthetic_{split_name}_{batch_idx}_{i}.jpg"
             
-            for name, extractor in feature_extractors.items():
-                features = extractor.extract_features(image_np)
-                sample_features.extend(features)
+            hsv_features = extract_hsv_features(image_np)
+            hog_features = extract_hog_features(image_np, config)
+            area_ratio = extract_area_ratio(image_np)
+            
+            sample_features = np.concatenate([hsv_features, hog_features, [area_ratio]])
             
             all_features.append(sample_features)
             all_labels.append(targets[i].item())
-            samples_processed += 1
-        
-        if max_samples and samples_processed >= max_samples:
-            break
+            all_paths.append(synthetic_path)
     
-    return np.array(all_features), np.array(all_labels)
+    features_array = np.array(all_features)
+    labels_array = np.array(all_labels)
+    paths_array = np.array(all_paths)
+    
+    np.savez(cache_file, features=features_array, labels=labels_array, paths=paths_array)
+    print(f"Cached features to {cache_file}")
+    
+    return features_array, labels_array, all_paths
 
 
 def create_feature_extractors(config: dict) -> dict:
-    """Create feature extractors based on configuration."""
+    """Create feature extractors based on configuration (legacy function)."""
+    from models.ann import HOGFeatureExtractor, ColorHistogramExtractor, TextureFeatureExtractor
+    
     ann_config = config['ann']
     
     extractors = {

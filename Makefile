@@ -24,6 +24,10 @@ smoke: install
 	$(PYTHON) src/train_cnn.py
 	@echo "Evaluating CNN model with GradCAM..."
 	$(PYTHON) src/eval_cnn.py --gradcam 2
+	@echo "Training ANN model on handcrafted features..."
+	$(PYTHON) src/train_ann.py
+	@echo "Fusing CNN and ANN predictions..."
+	$(PYTHON) src/fuse.py
 	@echo "Smoke test completed successfully!"
 
 # Train CNN model
