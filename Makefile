@@ -20,6 +20,10 @@ format:
 smoke: install
 	@echo "Running synthetic end-to-end smoke test..."
 	$(PYTHON) src/demo_synth.py
+	@echo "Training CNN model on synthetic data..."
+	$(PYTHON) src/train_cnn.py
+	@echo "Evaluating CNN model with GradCAM..."
+	$(PYTHON) src/eval_cnn.py --gradcam 2
 	@echo "Smoke test completed successfully!"
 
 # Train CNN model

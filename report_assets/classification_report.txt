@@ -1,0 +1,33 @@
+Plant Disease Classification - Evaluation Report
+==================================================
+
+Overall Accuracy: 0.2583
+Macro F1-Score: 0.1746
+Weighted F1-Score: 0.1746
+
+Per-Class Performance:
+------------------------------
+class_0:
+  Precision: 0.2663
+  Recall: 0.8167
+  F1-Score: 0.4016
+  Support: 60.0
+
+class_1:
+  Precision: 0.0000
+  Recall: 0.0000
+  F1-Score: 0.0000
+  Support: 60.0
+
+class_2:
+  Precision: 0.2500
+  Recall: 0.1000
+  F1-Score: 0.1429
+  Support: 60.0
+
+class_3:
+  Precision: 0.2258
+  Recall: 0.1167
+  F1-Score: 0.1538
+  Support: 60.0
+

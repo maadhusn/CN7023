@@ -1,7 +1,7 @@
 PlantVillage Synthetic Demo Report
 ========================================
 
-Dataset path: /tmp/synthetic_plantvillage_47ebtay3
+Dataset path: /tmp/synthetic_plantvillage_9zrohdsx
 Number of classes: 4
 Classes: bacterial_spot, early_blight, healthy, late_blight
 Dataset size: 168

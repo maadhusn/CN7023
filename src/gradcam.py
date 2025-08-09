@@ -110,6 +110,92 @@ def overlay_heatmap(image: np.ndarray, heatmap: np.ndarray, alpha: float = 0.4) 
     return overlayed.astype(np.uint8)
 
 
+def generate_individual_gradcam_files(
+    model: nn.Module,
+    data_loader: torch.utils.data.DataLoader,
+    class_names: List[str],
+    device: torch.device,
+    model_name: str,
+    num_samples: int = 4,
+    save_dir: str = "report_assets"
+):
+    """Generate individual GradCAM files with original basenames."""
+    os.makedirs(save_dir, exist_ok=True)
+    
+    target_layer = get_target_layer(model, model_name)
+    print(f"Using target layer: {target_layer}")
+    
+    gradcam = GradCAM(model, target_layer)
+    
+    samples_collected = 0
+    
+    for batch_idx, (data, targets) in enumerate(data_loader):
+        if samples_collected >= num_samples:
+            break
+        
+        data, targets = data.to(device), targets.to(device)
+        
+        for i in range(data.size(0)):
+            if samples_collected >= num_samples:
+                break
+            
+            input_tensor = data[i:i+1]
+            target = targets[i].item()
+            
+            input_tensor.requires_grad_(True)
+            model.train()  # Set to train mode to enable gradients
+            
+            output = model(input_tensor)
+            predicted_class = output.argmax(dim=1).item()
+            confidence = F.softmax(output, dim=1)[0, predicted_class].item()
+            
+            cam = gradcam.generate_cam(input_tensor, predicted_class)
+            
+            model.eval()  # Set back to eval mode
+            
+            input_image = input_tensor[0].detach().cpu().numpy()
+            input_image = input_image.transpose(1, 2, 0)
+            mean = np.array([0.485, 0.456, 0.406])
+            std = np.array([0.229, 0.224, 0.225])
+            input_image = input_image * std + mean
+            input_image = np.clip(input_image, 0, 1)
+            input_image = (input_image * 255).astype(np.uint8)
+            
+            overlay = overlay_heatmap(input_image, cam)
+            
+            basename = f"sample_{samples_collected:03d}"
+            if predicted_class == target:
+                filename = f"gradcam_correct_{basename}.png"
+            else:
+                pred_name = class_names[predicted_class]
+                true_name = class_names[target]
+                filename = f"gradcam_missed_{basename}__{pred_name}_vs_{true_name}.png"
+            
+            fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+            
+            axes[0].imshow(input_image)
+            axes[0].set_title(f'Original\nTrue: {class_names[target]}')
+            axes[0].axis('off')
+            
+            axes[1].imshow(cam, cmap='jet')
+            axes[1].set_title(f'GradCAM\nPred: {class_names[predicted_class]}')
+            axes[1].axis('off')
+            
+            axes[2].imshow(overlay)
+            axes[2].set_title(f'Overlay\nConf: {confidence:.3f}')
+            axes[2].axis('off')
+            
+            plt.tight_layout()
+            filepath = os.path.join(save_dir, filename)
+            plt.savefig(filepath, dpi=150, bbox_inches='tight')
+            plt.close()
+            
+            print(f"Saved GradCAM: {filepath}")
+            samples_collected += 1
+    
+    print(f"Generated {samples_collected} individual GradCAM files")
+
+
 def visualize_gradcam_samples(
     model: nn.Module,
     data_loader: torch.utils.data.DataLoader,
@@ -155,7 +241,7 @@ def visualize_gradcam_samples(
                 
                 cam = gradcam.generate_cam(input_tensor, predicted_class)
                 
-                input_image = input_tensor[0].cpu().numpy()
+                input_image = input_tensor[0].detach().cpu().numpy()
                 input_image = input_image.transpose(1, 2, 0)
                 
                 mean = np.array([0.485, 0.456, 0.406])

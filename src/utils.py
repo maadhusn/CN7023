@@ -169,8 +169,24 @@ def save_metrics(metrics: Dict, filepath: str):
     """Save metrics to JSON file."""
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     
+    def convert_numpy_types(obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {key: convert_numpy_types(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_numpy_types(item) for item in obj]
+        else:
+            return obj
+    
+    converted_metrics = convert_numpy_types(metrics)
+    
     with open(filepath, 'w') as f:
-        json.dump(metrics, f, indent=2)
+        json.dump(converted_metrics, f, indent=2)
     
     print(f"Metrics saved to {filepath}")
 

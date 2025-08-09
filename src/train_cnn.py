@@ -1,9 +1,12 @@
 """Train CNN models for plant disease classification."""
 
+import json
 import os
 import sys
+import warnings
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -15,7 +18,6 @@ from utils import (
     EarlyStopping,
     get_device,
     log_system_info,
-    plot_training_history,
     save_checkpoint,
     set_seed,
 )
@@ -140,8 +142,10 @@ def main():
         weight_decay=config['train']['weight_decay']
     )
     
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=3, verbose=True
+    num_epochs = config['train']['epochs']
+    
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=num_epochs, eta_min=config['train']['lr'] * 0.01
     )
     
     scaler = None
@@ -153,8 +157,6 @@ def main():
         patience=config['train']['early_stop_patience'],
         restore_best_weights=True
     )
-    
-    num_epochs = config['train']['epochs']
     train_losses, val_losses = [], []
     train_accs, val_accs = [], []
     
@@ -172,7 +174,7 @@ def main():
             model, val_loader, criterion, device
         )
         
-        scheduler.step(val_loss)
+        scheduler.step()
         
         train_losses.append(train_loss)
         val_losses.append(val_loss)
@@ -195,19 +197,120 @@ def main():
             print(f"Early stopping triggered after epoch {epoch+1}")
             break
     
-    plot_training_history(train_losses, val_losses, train_accs, val_accs)
+    os.makedirs("report_assets", exist_ok=True)
     
-    final_model_path = f"checkpoints/{model_name}_final.pth"
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'config': config,
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+    
+    epochs_range = range(1, len(train_losses) + 1)
+    
+    ax1.plot(epochs_range, train_losses, 'b-', label='Training Loss')
+    ax1.plot(epochs_range, val_losses, 'r-', label='Validation Loss')
+    ax1.set_title('Training and Validation Loss')
+    ax1.set_xlabel('Epochs')
+    ax1.set_ylabel('Loss')
+    ax1.legend()
+    ax1.grid(True)
+    
+    ax2.plot(epochs_range, train_accs, 'b-', label='Training Accuracy')
+    ax2.plot(epochs_range, val_accs, 'r-', label='Validation Accuracy')
+    ax2.set_title('Training and Validation Accuracy')
+    ax2.set_xlabel('Epochs')
+    ax2.set_ylabel('Accuracy (%)')
+    ax2.legend()
+    ax2.grid(True)
+    
+    plt.tight_layout()
+    plt.savefig('report_assets/curves.png', dpi=150, bbox_inches='tight')
+    plt.close()
+    print("Training curves saved to report_assets/curves.png")
+    
+    best_val_acc = max(val_accs)
+    best_val_loss = min(val_losses)
+    
+    metrics = {
+        'best_val_accuracy': best_val_acc,
+        'best_val_loss': best_val_loss,
+        'final_train_accuracy': train_accs[-1],
+        'final_val_accuracy': val_accs[-1],
+        'epochs_trained': len(train_losses),
+        'hyperparameters': {
+            'model': model_name,
+            'learning_rate': config['train']['lr'],
+            'weight_decay': config['train']['weight_decay'],
+            'batch_size': config['train']['batch_size'],
+            'epochs': config['train']['epochs'],
+            'early_stop_patience': config['train']['early_stop_patience']
+        },
+        'class_count': num_classes,
         'classes': train_loader.dataset.classes,
-        'model_info': model_info,
-    }, final_model_path)
+        'model_info': model_info
+    }
+    
+    with open('report_assets/metrics.json', 'w') as f:
+        json.dump(metrics, f, indent=2)
+    print("Metrics saved to report_assets/metrics.json")
+    
+    state_dict_path = f"checkpoints/small_{model_name}_state.pt"
+    torch.save(model.state_dict(), state_dict_path)
+    
+    state_dict_size = os.path.getsize(state_dict_path) / (1024 * 1024)  # MB
+    if state_dict_size > 80:
+        warnings.warn(f"State dict checkpoint is {state_dict_size:.1f}MB (>80MB)")
+    elif state_dict_size > 50:
+        print(f"Warning: State dict checkpoint is {state_dict_size:.1f}MB (>50MB)")
+    
+    print(f"State dict saved to: {state_dict_path} ({state_dict_size:.1f}MB)")
+    
+    try:
+        model.eval()
+        dummy_input = torch.randn(1, 3, config['data']['image_size'], config['data']['image_size']).to(device)
+        onnx_path = f"checkpoints/small_{model_name}.onnx"
+        
+        torch.onnx.export(
+            model,
+            dummy_input,
+            onnx_path,
+            export_params=True,
+            opset_version=12,
+            do_constant_folding=True,
+            input_names=['input'],
+            output_names=['output'],
+            dynamic_axes={
+                'input': {0: 'batch_size'},
+                'output': {0: 'batch_size'}
+            }
+        )
+        
+        onnx_size = os.path.getsize(onnx_path) / (1024 * 1024)  # MB
+        if onnx_size > 80:
+            warnings.warn(f"ONNX model is {onnx_size:.1f}MB (>80MB)")
+        elif onnx_size > 50:
+            print(f"Warning: ONNX model is {onnx_size:.1f}MB (>50MB)")
+        
+        print(f"ONNX model saved to: {onnx_path} ({onnx_size:.1f}MB)")
+    except Exception as e:
+        print(f"Failed to export ONNX model: {e}")
+    
+    try:
+        model.eval()
+        dummy_input = torch.randn(1, 3, config['data']['image_size'], config['data']['image_size']).to(device)
+        traced_model = torch.jit.trace(model, dummy_input)
+        torchscript_path = f"checkpoints/small_{model_name}.torchscript.pt"
+        traced_model.save(torchscript_path)
+        
+        torchscript_size = os.path.getsize(torchscript_path) / (1024 * 1024)  # MB
+        if torchscript_size > 80:
+            warnings.warn(f"TorchScript model is {torchscript_size:.1f}MB (>80MB)")
+        elif torchscript_size > 50:
+            print(f"Warning: TorchScript model is {torchscript_size:.1f}MB (>50MB)")
+        
+        print(f"TorchScript model saved to: {torchscript_path} ({torchscript_size:.1f}MB)")
+    except Exception as e:
+        print(f"Failed to export TorchScript model: {e}")
     
     print(f"\nTraining completed!")
-    print(f"Best validation accuracy: {max(val_accs):.2f}%")
-    print(f"Final model saved to: {final_model_path}")
+    print(f"Best validation accuracy: {best_val_acc:.2f}%")
+    print(f"All artifacts saved to checkpoints/ and report_assets/")
 
 
 if __name__ == "__main__":
