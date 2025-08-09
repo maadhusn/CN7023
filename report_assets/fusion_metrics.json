@@ -1,10 +1,10 @@
 {
-  "ann_accuracy": 0.2375,
+  "ann_accuracy": 0.25833333333333336,
   "cnn_accuracy": 0.25833333333333336,
-  "fusion_accuracy": 0.2375,
+  "fusion_accuracy": 0.25833333333333336,
   "improvement_over_ann": 0.0,
-  "improvement_over_cnn": -0.02083333333333337,
-  "improvement_over_best": -0.02083333333333337,
+  "improvement_over_cnn": 0.0,
+  "improvement_over_best": 0.0,
   "fusion_method": "weighted_average",
   "fusion_weights": {
     "cnn": 0.5,

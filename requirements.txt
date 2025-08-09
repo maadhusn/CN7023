@@ -1,15 +1,7 @@
 torch
 torchvision
-torchaudio
-albumentations
-opencv-python
 matplotlib
+seaborn
 scikit-learn
-scikit-image
-numpy
-pyyaml
-tqdm
 pillow
-pandas
-onnx
-onnxruntime
+numpy
