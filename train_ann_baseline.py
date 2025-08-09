@@ -3,6 +3,7 @@
 import os
 import argparse
 import yaml
+import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,7 +14,14 @@ import seaborn as sns
 import json
 
 from ann_dataset import create_ann_data_loaders
-from src.data import set_seed
+
+
+def set_seed(seed=42):
+    """Set random seeds for reproducibility."""
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
 
 
 class ANNBaseline(nn.Module):
