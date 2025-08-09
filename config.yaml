@@ -1,0 +1,37 @@
+data:
+  root: ""                  # empty -> synthetic mode
+  variant: "color"          # "color" | "grayscale" | "segmented"
+  image_size: 192
+  train_split: 0.70
+  val_split: 0.15
+  test_split: 0.15
+  subset_per_class: 60      # dev/smoke; set null for full
+  use_masks: false
+  masks_subdir: "masks"
+  splits_dir: "splits"
+
+train:
+  model: "efficientnet_b0"  # or "mobilenet_v3_small"
+  epochs: 3
+  batch_size: 32
+  lr: 0.0003
+  weight_decay: 0.0001
+  early_stop_patience: 2
+  num_workers: 0
+  mixed_precision: false
+
+aug:
+  flip: true
+  rotation_deg: 10
+  color_jitter: 0.1
+  blur_p: 0.05
+
+eval:
+  tta: false
+  gradcam_samples: 4
+  save_dir: "report_assets"
+
+ann:
+  hog_pixels_per_cell: 16
+  hog_cells_per_block: 2
+  hog_bins: 9

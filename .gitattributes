@@ -1,0 +1,29 @@
+# Block files larger than 50MB
+*.pt filter=lfs diff=lfs merge=lfs -text
+*.pth filter=lfs diff=lfs merge=lfs -text
+*.ckpt filter=lfs diff=lfs merge=lfs -text
+*.npz filter=lfs diff=lfs merge=lfs -text
+*.pkl filter=lfs diff=lfs merge=lfs -text
+*.joblib filter=lfs diff=lfs merge=lfs -text
+
+# Enable Git LFS for small checkpoints in checkpoints/ directory
+checkpoints/small_* filter=lfs diff=lfs merge=lfs -text
+
+# Prevent accidental commits of large files
+* filter=check-filesize
+*.jpg filter=check-filesize
+*.png filter=check-filesize
+*.jpeg filter=check-filesize
+*.tiff filter=check-filesize
+*.bmp filter=check-filesize
+
+# Text files should be normalized
+*.py text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.cfg text eol=lf
+*.ini text eol=lf
