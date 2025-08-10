@@ -224,8 +224,8 @@ def main():
     
     os.makedirs('results', exist_ok=True)
     
-    from torchvision import datasets
-    temp_dataset = datasets.ImageFolder(root=dataset_path)
+    from src.custom_imagefolder import SafeImageFolder
+    temp_dataset = SafeImageFolder(root=dataset_path)
     class_names = temp_dataset.classes
     num_classes = len(class_names)
     

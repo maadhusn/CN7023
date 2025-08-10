@@ -262,6 +262,8 @@ def main():
         try:
             return x.item()
         except Exception:
+            if hasattr(x, 'dtype'):  # numpy types
+                return x.item() if hasattr(x, 'item') else float(x)
             return float(x) if isinstance(x, (int, float)) else x
     
     results = {
