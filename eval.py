@@ -234,7 +234,11 @@ def main():
     set_seed(config.get('seed', 42))
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f'Using device: {device}')
+    dataset_path = config.get('dataset', {}).get('path', DATASET_DEFAULT)
+    
+    print(f"Using device: {device}")
+    print(f"Dataset path: {dataset_path}")
+    print(f"Model path:   {args.model_path}")
     
     os.makedirs('results', exist_ok=True)
     

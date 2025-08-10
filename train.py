@@ -258,14 +258,20 @@ def main():
     torch.save(model.state_dict(), 'results/resnet50_model.pth')
     print("Model saved to results/resnet50_model.pth")
     
+    def _to_py(x):
+        try:
+            return x.item()
+        except Exception:
+            return float(x) if isinstance(x, (int, float)) else x
+    
     results = {
-        'train_losses': train_losses,
-        'val_losses': val_losses,
-        'train_accs': train_accs,
-        'val_accs': val_accs,
-        'test_acc': test_acc,
-        'test_predictions': test_predictions,
-        'test_targets': test_targets,
+        'train_losses': [_to_py(x) for x in train_losses],
+        'val_losses': [_to_py(x) for x in val_losses],
+        'train_accs': [_to_py(x) for x in train_accs],
+        'val_accs': [_to_py(x) for x in val_accs],
+        'test_acc': _to_py(test_acc),
+        'test_predictions': [_to_py(x) for x in test_predictions],
+        'test_targets': [_to_py(x) for x in test_targets],
         'class_names': class_names,
         'num_classes': num_classes,
         'hyperparameters': {
@@ -277,7 +283,7 @@ def main():
         }
     }
     
-    with open('results/training_results.json', 'w') as f:
+    with open('results/training_results.json', 'w', encoding='utf-8') as f:
         json.dump(results, f, indent=2)
     
     print("Training results saved to results/training_results.json")
