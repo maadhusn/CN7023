@@ -8,7 +8,8 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
 from collections import Counter
 import torch
-from torchvision import datasets, transforms
+from torchvision import transforms
+from src.custom_imagefolder import SafeImageFolder as ImageFolder
 from torch.utils.data import DataLoader
 import random
 
@@ -48,7 +49,7 @@ def analyze_dataset():
         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
     ])
     
-    dataset = datasets.ImageFolder(root=DATASET_PATH, transform=transform)
+    dataset = ImageFolder(root=DATASET_PATH, transform=transform)
     
     class_counts = Counter()
     for _, label in dataset.samples:
@@ -114,7 +115,8 @@ def generate_sample_grid(dataset):
         plt.subplot(4, 4, i + 1)
         
         img_path, label = dataset.samples[sample_idx]
-        img = datasets.folder.default_loader(img_path)
+        from PIL import Image
+        img = Image.open(img_path).convert('RGB')
         img = transforms.Resize((IMAGE_SIZE, IMAGE_SIZE))(img)
         
         plt.imshow(img)
