@@ -1,4 +1,4 @@
-"""Training script for MSc coursework using manifest-based data loading."""
+"""Training script for MSc coursework using SafeImageFolder data loading."""
 
 import os
 import argparse
@@ -7,13 +7,12 @@ import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchvision import models, datasets, transforms
+from torchvision import models, transforms
 from pathlib import Path
-from collections import defaultdict
 import json
-from PIL import Image
+from src.custom_imagefolder import SafeImageFolder as ImageFolder
 
-DATASET_PATH = "C:/PlantVillage"
+DATASET_DEFAULT = r"C:/PlantVillage"  # Windows local
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
@@ -46,130 +45,41 @@ def get_transforms(image_size=224):
     return train_transform, val_test_transform
 
 
-def create_stratified_splits(dataset_path, splits_dir, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, subset_per_class=None, seed=42):
-    """Create stratified train/val/test splits and save to manifest files."""
-    set_seed(seed)
-    
-    os.makedirs(splits_dir, exist_ok=True)
-    
-    class_samples = defaultdict(list)
-    
-    for class_name in sorted(os.listdir(dataset_path)):
-        class_dir = os.path.join(dataset_path, class_name)
-        if not os.path.isdir(class_dir):
-            continue
-            
-        for filename in os.listdir(class_dir):
-            if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
-                rel_path = f"{class_name}/{filename}"
-                class_samples[class_name].append(rel_path)
-    
-    if subset_per_class:
-        for class_name in class_samples:
-            if len(class_samples[class_name]) > subset_per_class:
-                class_samples[class_name] = random.sample(class_samples[class_name], subset_per_class)
-    
-    train_samples = []
-    val_samples = []
-    test_samples = []
-    
-    for class_name, samples in class_samples.items():
-        random.shuffle(samples)
-        
-        n_samples = len(samples)
-        n_train = int(n_samples * train_ratio)
-        n_val = int(n_samples * val_ratio)
-        
-        train_samples.extend(samples[:n_train])
-        val_samples.extend(samples[n_train:n_train + n_val])
-        test_samples.extend(samples[n_train + n_val:])
-    
-    random.shuffle(train_samples)
-    random.shuffle(val_samples)
-    random.shuffle(test_samples)
-    
-    with open(os.path.join(splits_dir, 'train.txt'), 'w') as f:
-        for sample in train_samples:
-            f.write(f"{sample}\n")
-    
-    with open(os.path.join(splits_dir, 'val.txt'), 'w') as f:
-        for sample in val_samples:
-            f.write(f"{sample}\n")
-    
-    with open(os.path.join(splits_dir, 'test.txt'), 'w') as f:
-        for sample in test_samples:
-            f.write(f"{sample}\n")
-    
-    print(f"Created stratified splits:")
-    print(f"  Train: {len(train_samples)} samples")
-    print(f"  Val: {len(val_samples)} samples")
-    print(f"  Test: {len(test_samples)} samples")
-    print(f"  Classes: {len(class_samples)}")
-    
-    return sorted(class_samples.keys())
-
-
-class ManifestDataset(torch.utils.data.Dataset):
-    """Dataset that loads images from manifest files."""
-    
-    def __init__(self, manifest_path, dataset_path, class_names, transform=None):
-        self.dataset_path = Path(dataset_path)
-        self.class_names = class_names
-        self.class_to_idx = {name: idx for idx, name in enumerate(class_names)}
-        self.transform = transform
-        
-        self.samples = []
-        with open(manifest_path, 'r') as f:
-            for line in f:
-                rel_path = line.strip()
-                if rel_path:
-                    class_name = rel_path.split('/')[0]
-                    if class_name in self.class_to_idx:
-                        full_path = self.dataset_path / rel_path
-                        self.samples.append((str(full_path), self.class_to_idx[class_name]))
-    
-    def __len__(self):
-        return len(self.samples)
-    
-    def __getitem__(self, idx):
-        path, target = self.samples[idx]
-        image = Image.open(path).convert('RGB')
-        
-        if self.transform:
-            image = self.transform(image)
-        
-        return image, target
-
-
 def create_data_loaders(batch_size=32, image_size=224, config_path=None):
-    """Create train/val/test data loaders using manifest files."""
+    """Create train/val/test data loaders using SafeImageFolder."""
     config = {}
     if config_path and os.path.exists(config_path):
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
     
-    dataset_path = config.get('dataset', {}).get('path', DATASET_PATH)
-    splits_dir = os.path.join(dataset_path, 'splits')
-    
-    train_manifest = os.path.join(splits_dir, 'train.txt')
-    val_manifest = os.path.join(splits_dir, 'val.txt')
-    test_manifest = os.path.join(splits_dir, 'test.txt')
-    
-    if not all(os.path.exists(f) for f in [train_manifest, val_manifest, test_manifest]):
-        print("Manifest files not found. Creating splits...")
-        class_names = create_stratified_splits(
-            dataset_path, splits_dir,
-            subset_per_class=config.get('subset_per_class')
-        )
-    else:
-        temp_dataset = datasets.ImageFolder(root=dataset_path)
-        class_names = temp_dataset.classes
+    dataset_path = config.get('dataset', {}).get('path', DATASET_DEFAULT)
+    print(f"Using dataset path: {dataset_path}")
     
     train_transform, val_test_transform = get_transforms(image_size)
     
-    train_dataset = ManifestDataset(train_manifest, dataset_path, class_names, train_transform)
-    val_dataset = ManifestDataset(val_manifest, dataset_path, class_names, val_test_transform)
-    test_dataset = ManifestDataset(test_manifest, dataset_path, class_names, val_test_transform)
+    full_dataset = ImageFolder(root=dataset_path, transform=None)
+    class_names = full_dataset.classes
+    
+    set_seed(config.get('seed', 42))
+    
+    dataset_config = config.get('dataset', {})
+    train_ratio = dataset_config.get('train_split', 0.7)
+    val_ratio = dataset_config.get('val_split', 0.15)
+    test_ratio = dataset_config.get('test_split', 0.15)
+    
+    total_size = len(full_dataset)
+    train_size = int(total_size * train_ratio)
+    val_size = int(total_size * val_ratio)
+    test_size = total_size - train_size - val_size
+    
+    train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(
+        full_dataset, [train_size, val_size, test_size],
+        generator=torch.Generator().manual_seed(config.get('seed', 42))
+    )
+    
+    train_dataset.dataset.transform = train_transform
+    val_dataset.dataset.transform = val_test_transform
+    test_dataset.dataset.transform = val_test_transform
     
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
@@ -271,7 +181,12 @@ def main():
     """Main training function."""
     parser = argparse.ArgumentParser(description='Train ResNet50 model')
     parser.add_argument('--config', default='config.yaml', help='Config file path')
+    parser.add_argument('--regen-splits', action='store_true', help='No-op (manifests not used)')
     args = parser.parse_args()
+    
+    if args.regen_splits:
+        print("--regen-splits: skipped (no manifests used)")
+        return
     
     config = {}
     if os.path.exists(args.config):
@@ -343,14 +258,20 @@ def main():
     torch.save(model.state_dict(), 'results/resnet50_model.pth')
     print("Model saved to results/resnet50_model.pth")
     
+    def _to_py(x):
+        try:
+            return x.item()
+        except Exception:
+            return float(x) if isinstance(x, (int, float)) else x
+    
     results = {
-        'train_losses': train_losses,
-        'val_losses': val_losses,
-        'train_accs': train_accs,
-        'val_accs': val_accs,
-        'test_acc': test_acc,
-        'test_predictions': test_predictions,
-        'test_targets': test_targets,
+        'train_losses': [_to_py(x) for x in train_losses],
+        'val_losses': [_to_py(x) for x in val_losses],
+        'train_accs': [_to_py(x) for x in train_accs],
+        'val_accs': [_to_py(x) for x in val_accs],
+        'test_acc': _to_py(test_acc),
+        'test_predictions': [_to_py(x) for x in test_predictions],
+        'test_targets': [_to_py(x) for x in test_targets],
         'class_names': class_names,
         'num_classes': num_classes,
         'hyperparameters': {
@@ -362,7 +283,7 @@ def main():
         }
     }
     
-    with open('results/training_results.json', 'w') as f:
+    with open('results/training_results.json', 'w', encoding='utf-8') as f:
         json.dump(results, f, indent=2)
     
     print("Training results saved to results/training_results.json")

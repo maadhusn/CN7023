@@ -43,6 +43,22 @@ This project implements a complete machine learning pipeline for plant disease c
 
 **Note**: This repository supports only Windows flat layout with dataset at `C:\PlantVillage\`.
 
+## Local Windows Quick Run
+
+```powershell
+# from C:\CN7023
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# (make sure your dataset is at C:\PlantVillage with class folders inside; no 'splits' needed)
+python train.py
+python eval.py --gradcam 24
+python visualize_results.py
+
+# outputs in .\results\
+```
+
 ## Quick Setup
 
 ### 1. Install Dependencies
